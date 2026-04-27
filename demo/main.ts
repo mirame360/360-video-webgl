@@ -248,7 +248,7 @@ function loadPlayer(targetQuality?: string) {
        { src: 'example_720p.mp4', type: 'mp4', quality: '720p' }
     ],
     defaultQuality: defaultQual,
-    maxQuality: '4k',
+    maxQuality: '8k',
     sourcePreference: ['hls', 'mp4'],
     initialYaw: prevState?.yaw,
     initialPitch: prevState?.pitch,
