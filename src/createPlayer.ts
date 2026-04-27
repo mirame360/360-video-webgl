@@ -110,8 +110,14 @@ class WebGL360PlayerController {
       return;
     }
 
-    await this.video.play();
-    this.state.isPaused = false;
+    try {
+      await this.video.play();
+      this.state.isPaused = false;
+    } catch (error) {
+      this.state.isPaused = true;
+      if (this.config.debug) console.warn('WebGL360Player: play() was prevented or failed:', error);
+      throw error;
+    }
   }
 
   pause(): void {
@@ -132,6 +138,8 @@ class WebGL360PlayerController {
   seek(time: number): void {
     if (this.video) {
       this.video.currentTime = time;
+      // Force a state sync
+      this.state.currentTime = time;
     }
   }
 
@@ -217,6 +225,9 @@ class WebGL360PlayerController {
   }
 
   getState(): WebGL360PlayerState {
+    if (this.video) {
+      this.state.isPaused = this.video.paused;
+    }
     return {
       ...this.state,
       attemptedSources: [...this.state.attemptedSources],
