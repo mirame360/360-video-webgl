@@ -31,6 +31,7 @@ const btnDebug = document.querySelector<HTMLButtonElement>('#ui-debug');
 const btnFullscreen = document.querySelector<HTMLButtonElement>('#ui-fullscreen');
 
 let player: WebGL360Player | undefined;
+let lastStateJson = '';
 
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
@@ -42,59 +43,66 @@ function updateUI() {
   if (!player || !progressBar || !timeDisplay) return;
   const state = player.getState();
   
+  // Only update heavy DOM elements if state actually changed
+  const stateJson = JSON.stringify({
+    isPaused: state.isPaused,
+    isMuted: state.isMuted,
+    isMotionEnabled: state.isMotionEnabled,
+    isDebug: state.isDebug,
+    quality: state.selectedSource?.quality,
+    fov: state.fov.toFixed(1)
+  });
+
   if (state.duration > 0) {
     progressBar.max = state.duration.toString();
     progressBar.value = state.currentTime.toString();
     const remaining = Math.max(0, state.duration - state.currentTime);
     timeDisplay.textContent = `-${formatTime(remaining)}`;
-  }
-
-  if (btnPlayPause) {
-    if (state.isPaused) {
-      btnPlayPause.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="2" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
-    } else {
-      btnPlayPause.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="2" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>';
-    }
-  }
-
-  if (btnMute) {
-    if (state.isMuted) {
-      btnMute.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>';
-    } else {
-      btnMute.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>';
-    }
-  }
-
-  if (progressBar && state.duration > 0) {
     const percent = (state.currentTime / state.duration) * 100;
-    progressBar.style.background = `linear-gradient(to right, #fff ${percent}%, rgba(255, 255, 255, 0.3) ${percent}%)`;
+    progressBar.style.background = `linear-gradient(to right, #3b82f6 ${percent}%, rgba(255, 255, 255, 0.2) ${percent}%)`;
   }
 
-  if (zoomLevelDisplay) {
-    // Treat initial FOV (75) as 1.0x
-    const zoom = (75 / state.fov).toFixed(1);
-    zoomLevelDisplay.textContent = `${zoom}x`;
-  }
-  
-  if (btnMotion) {
-    btnMotion.style.color = state.isMotionEnabled ? '#4ade80' : '#fff';
+  if (stateJson !== lastStateJson) {
+    if (btnPlayPause) {
+      if (state.isPaused) {
+        btnPlayPause.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="2" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+      } else {
+        btnPlayPause.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="2" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>';
+      }
+    }
+    
+    if (btnMute) {
+      if (state.isMuted) {
+        btnMute.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>';
+      } else {
+        btnMute.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>';
+      }
+    }
+
+    if (zoomLevelDisplay) {
+      const zoom = (75 / state.fov).toFixed(1);
+      zoomLevelDisplay.textContent = `${zoom}x`;
+    }
+    
+    if (btnMotion) {
+      btnMotion.style.color = state.isMotionEnabled ? '#4ade80' : '#fff';
+    }
+
+    if (btnDebug) {
+      btnDebug.style.color = state.isDebug ? '#4ade80' : '#fff';
+    }
+
+    lastStateJson = stateJson;
   }
 
-  if (btnDebug) {
-    btnDebug.style.color = state.isDebug ? '#4ade80' : '#fff';
-  }
+  requestAnimationFrame(updateUI);
 }
 
-setInterval(updateUI, 100);
+requestAnimationFrame(updateUI);
 
 btnPlayPause?.addEventListener('click', () => {
   if (!player) return;
-  const state = player.getState();
-  if (state.isPaused) {
-    player.play();
-  } else {
-    player.pause();
-  }
+  void player.togglePlay();
 });
 
 btnMute?.addEventListener('click', () => {

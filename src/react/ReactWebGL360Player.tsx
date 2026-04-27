@@ -75,6 +75,7 @@ export const ReactWebGL360Player = forwardRef<PlayerInstance, ReactWebGL360Playe
       play: () => playerRef.current?.play() ?? Promise.resolve(),
       pause: () => playerRef.current?.pause(),
       stop: () => playerRef.current?.stop(),
+      togglePlay: () => playerRef.current?.togglePlay() ?? Promise.resolve(),
       seek: (time: number) => playerRef.current?.seek(time),
       setYaw: (yaw: number) => playerRef.current?.setYaw(yaw),
       setPitch: (pitch: number) => playerRef.current?.setPitch(pitch),

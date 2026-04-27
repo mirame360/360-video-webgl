@@ -90,6 +90,7 @@ class WebGL360PlayerController {
       play: () => this.play(),
       pause: () => this.pause(),
       stop: () => this.stop(),
+      togglePlay: () => this.togglePlay(),
       seek: (time) => this.seek(time),
       setYaw: (yaw) => this.setYaw(yaw),
       setPitch: (pitch) => this.setPitch(pitch),
@@ -114,7 +115,7 @@ class WebGL360PlayerController {
       await this.video.play();
       this.state.isPaused = false;
     } catch (error) {
-      this.state.isPaused = true;
+      this.state.isPaused = this.video.paused;
       if (this.config.debug) console.warn('WebGL360Player: play() was prevented or failed:', error);
       throw error;
     }
@@ -124,6 +125,15 @@ class WebGL360PlayerController {
     if (this.video) {
       this.video.pause();
       this.state.isPaused = true;
+    }
+  }
+
+  async togglePlay(): Promise<void> {
+    if (!this.video) return;
+    if (this.video.paused) {
+      return this.play();
+    } else {
+      this.pause();
     }
   }
 

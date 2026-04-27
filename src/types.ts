@@ -155,6 +155,7 @@ export interface WebGL360Player {
   play: () => Promise<void>;
   pause: () => void;
   stop: () => void;
+  togglePlay: () => Promise<void>;
   seek: (time: number) => void;
   setYaw: (yaw: number) => void;
   setPitch: (pitch: number) => void;
