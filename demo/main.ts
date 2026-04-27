@@ -223,9 +223,9 @@ function loadPlayer(targetQuality?: string) {
   player?.destroy();
   viewer.innerHTML = '';
   
-  // Reset hasStartedPlaying if this is a fresh load 
-  // OR if the previous player existed but was still at the very beginning (never played)
-  if (!prevState || (prevState.isPaused && prevState.currentTime === 0 && !hasStartedPlaying)) {
+  // If we haven't started playing yet, ensure the flag stays false
+  // so the big play button shows on the new player instance.
+  if (!prevState || !hasStartedPlaying) {
     hasStartedPlaying = false;
   }
 
