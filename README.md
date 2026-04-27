@@ -70,6 +70,26 @@ const player = createWebGL360Player(container, {
 });
 ```
 
+## Configuration Options
+
+| Option | Type | Description |
+| :--- | :--- | :--- |
+| `sources` | `Source[]` | **Required**. Main video sources. |
+| `preSources` | `Source[]` | Optional intro video(s). |
+| `postSources` | `Source[]` | Optional outro video(s). |
+| `autoplay` | `boolean` | Start playback automatically. |
+| `muted` | `boolean` | Start video muted. Default: `true`. |
+| `loop` | `boolean` | Repeat the entire sequence (pre -> main -> post) indefinitely. Default: `false`. |
+| `keyboardShortcuts` | `boolean` | Enable Space (play/pause), M (mute), arrows (seek). Default: `true`. |
+| `debug` | `boolean` | Enables the green performance overlay and touch logging. |
+| `motionControls` | `boolean` | Enables/Disables gyroscope support. |
+| `onClick` | `function` | Callback for user clicks on the canvas. |
+| `onReady` | `function` | Callback when player is initialized. |
+| `onPlay` | `function` | Callback when playback starts. |
+| `onPause` | `function` | Callback when playback pauses. |
+| `onTimeUpdate` | `function` | Callback for playback progress (time, duration). |
+| `onEnded` | `function` | Callback when the entire sequence ends. |
+
 ## License
 
 MIT

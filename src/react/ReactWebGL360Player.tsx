@@ -60,14 +60,27 @@ export const ReactWebGL360Player = forwardRef<PlayerInstance, ReactWebGL360Playe
     if (props.initialFov !== undefined) playerRef.current.setFov(props.initialFov);
   }, [props.initialFov]);
 
+  useEffect(() => {
+    if (!playerRef.current) return;
+    if (props.muted !== undefined) playerRef.current.setMuted(props.muted);
+  }, [props.muted]);
+
+  useEffect(() => {
+    if (!playerRef.current) return;
+    if (props.debug !== undefined) playerRef.current.setDebug(props.debug);
+  }, [props.debug]);
+
   useImperativeHandle(ref, () => {
     return {
       play: () => playerRef.current?.play() ?? Promise.resolve(),
       pause: () => playerRef.current?.pause(),
+      stop: () => playerRef.current?.stop(),
       seek: (time: number) => playerRef.current?.seek(time),
       setYaw: (yaw: number) => playerRef.current?.setYaw(yaw),
       setPitch: (pitch: number) => playerRef.current?.setPitch(pitch),
       setFov: (fov: number) => playerRef.current?.setFov(fov),
+      setMuted: (muted: boolean) => playerRef.current?.setMuted(muted),
+      setDebug: (enabled: boolean) => playerRef.current?.setDebug(enabled),
       setMotionEnabled: (enabled: boolean) => playerRef.current?.setMotionEnabled(enabled) ?? Promise.resolve(false),
       getState: () => playerRef.current?.getState()!,
       destroy: () => playerRef.current?.destroy(),

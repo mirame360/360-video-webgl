@@ -66,14 +66,21 @@ class WebGL360PlayerController {
       fps: 0,
       bitrate: 0,
       isMotionEnabled: false,
+      isMuted: config.muted,
+      isPaused: true,
+      isLooping: config.loop,
+      isDebug: config.debug,
       attemptedSources: [],
     };
     this.loader = createLoader(container);
     this.container.dataset.webgl360Mode = 'initializing';
 
     if (config.debug) {
-      this.debugOverlay = createDebugOverlay(container);
-      this.debugInterval = globalThis.setInterval(() => this.updateDebug(), 500) as unknown as number;
+      this.enableDebugInternal();
+    }
+
+    if (config.keyboardShortcuts) {
+      this.setupKeyboardShortcuts();
     }
   }
 
@@ -82,10 +89,13 @@ class WebGL360PlayerController {
       destroy: () => this.destroy(),
       play: () => this.play(),
       pause: () => this.pause(),
+      stop: () => this.stop(),
       seek: (time) => this.seek(time),
       setYaw: (yaw) => this.setYaw(yaw),
       setPitch: (pitch) => this.setPitch(pitch),
       setFov: (fov) => this.setFov(fov),
+      setMuted: (muted) => this.setMuted(muted),
+      setDebug: (enabled) => this.setDebug(enabled),
       setMotionEnabled: (enabled) => this.setMotionEnabled(enabled),
       getState: () => this.getState(),
     };
@@ -101,15 +111,64 @@ class WebGL360PlayerController {
     }
 
     await this.video.play();
+    this.state.isPaused = false;
   }
 
   pause(): void {
-    this.video?.pause();
+    if (this.video) {
+      this.video.pause();
+      this.state.isPaused = true;
+    }
+  }
+
+  stop(): void {
+    if (this.video) {
+      this.video.pause();
+      this.video.currentTime = 0;
+      this.state.isPaused = true;
+    }
   }
 
   seek(time: number): void {
     if (this.video) {
       this.video.currentTime = time;
+    }
+  }
+
+  setMuted(muted: boolean): void {
+    this.state.isMuted = muted;
+    if (this.video) {
+      this.video.muted = muted;
+    }
+  }
+
+  setDebug(enabled: boolean): void {
+    if (this.state.isDebug === enabled) return;
+    this.state.isDebug = enabled;
+    if (enabled) {
+      this.enableDebugInternal();
+    } else {
+      this.disableDebugInternal();
+    }
+  }
+
+  private enableDebugInternal(): void {
+    if (!this.debugOverlay) {
+      this.debugOverlay = createDebugOverlay(this.container);
+    }
+    if (!this.debugInterval) {
+      this.debugInterval = globalThis.setInterval(() => this.updateDebug(), 500) as unknown as number;
+    }
+  }
+
+  private disableDebugInternal(): void {
+    if (this.debugOverlay) {
+      this.debugOverlay.destroy();
+      this.debugOverlay = undefined;
+    }
+    if (this.debugInterval) {
+      globalThis.clearInterval(this.debugInterval);
+      this.debugInterval = undefined;
     }
   }
 
@@ -179,6 +238,7 @@ class WebGL360PlayerController {
     this.errorState?.destroy();
     this.debugOverlay?.destroy();
     if (this.debugInterval) globalThis.clearInterval(this.debugInterval);
+    window.removeEventListener('keydown', this.handleKeydown);
 
     if (this.video) {
       this.video.pause();
@@ -188,6 +248,55 @@ class WebGL360PlayerController {
       this.video = undefined;
     }
   }
+
+  private setupKeyboardShortcuts(): void {
+    window.addEventListener('keydown', this.handleKeydown);
+  }
+
+  private readonly handleKeydown = (event: KeyboardEvent): void => {
+    // Only trigger if focus is on the container or body (avoid input fields)
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+      return;
+    }
+
+    switch (event.code) {
+      case 'Space':
+      case 'KeyK':
+        event.preventDefault();
+        if (this.video?.paused) {
+          void this.play();
+        } else {
+          this.pause();
+        }
+        break;
+      case 'KeyM':
+        this.setMuted(!this.state.isMuted);
+        break;
+      case 'ArrowLeft':
+      case 'KeyJ':
+        this.seek(this.state.currentTime - 5);
+        break;
+      case 'ArrowRight':
+      case 'KeyL':
+        this.seek(this.state.currentTime + 5);
+        break;
+      case 'Digit0':
+      case 'Digit1':
+      case 'Digit2':
+      case 'Digit3':
+      case 'Digit4':
+      case 'Digit5':
+      case 'Digit6':
+      case 'Digit7':
+      case 'Digit8':
+      case 'Digit9':
+        const percent = parseInt(event.code.replace('Digit', ''), 10) * 10;
+        if (this.video && this.video.duration) {
+          this.seek((this.video.duration * percent) / 100);
+        }
+        break;
+    }
+  };
 
   private async initialize(): Promise<void> {
     try {
@@ -283,13 +392,20 @@ class WebGL360PlayerController {
     video.className = 'webgl-360-player__video';
     
     video.addEventListener('play', () => {
+      this.state.isPaused = false;
       if (this.config.debug) console.info('Video: play');
       this.config.onPlay?.();
     });
     
     video.addEventListener('pause', () => {
+      this.state.isPaused = true;
       if (this.config.debug) console.info('Video: pause');
       this.config.onPause?.();
+    });
+
+    video.addEventListener('playing', () => {
+      this.state.isPaused = false;
+      if (this.config.debug) console.info('Video: playing');
     });
 
     video.addEventListener('ended', () => {
@@ -298,7 +414,6 @@ class WebGL360PlayerController {
     });
 
     if (this.config.debug) {
-      video.addEventListener('playing', () => console.info('Video: playing'));
       video.addEventListener('error', () => {
         const error = video.error;
         console.error('Video: error', {
@@ -316,7 +431,7 @@ class WebGL360PlayerController {
 
     video.preload = 'auto';
     video.muted = this.config.muted;
-    video.loop = this.config.loop;
+    video.loop = false; // We handle looping manually to support sequences
     video.playsInline = this.config.playsInline;
     video.controls = false;
     video.style.position = 'absolute';
@@ -345,11 +460,27 @@ class WebGL360PlayerController {
       if (this.config.postSources && this.config.postSources.length > 0) {
         this.state.stage = 'post';
         await this.runSequenceStage('post', this.config.postSources);
+      } else if (this.config.loop) {
+        await this.restartSequence();
       } else {
         this.config.onEnded?.();
       }
+    } else if (this.state.stage === 'post') {
+      if (this.config.loop) {
+        await this.restartSequence();
+      } else {
+        this.config.onEnded?.();
+      }
+    }
+  }
+
+  private async restartSequence(): Promise<void> {
+    if (this.config.preSources && this.config.preSources.length > 0) {
+      this.state.stage = 'pre';
+      await this.runSequenceStage('pre', this.config.preSources);
     } else {
-      this.config.onEnded?.();
+      this.state.stage = 'main';
+      await this.runSequenceStage('main', this.config.sources);
     }
   }
 
@@ -560,6 +691,7 @@ function createDebugOverlay(container: HTMLElement): DebugOverlayHandle {
         `Bitrate: ${bitrate}`,
         `Yaw/Pitch: ${state.yaw.toFixed(1)}° / ${state.pitch.toFixed(1)}°`,
         `FOV: ${state.fov.toFixed(1)}°`,
+        `Muted: ${state.isMuted ? 'YES' : 'NO'}`,
         `Motion: ${state.isMotionEnabled ? 'ON' : 'OFF'}`,
       ].join('\n');
     },

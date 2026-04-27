@@ -7,6 +7,7 @@ const viewer = document.querySelector<HTMLElement>('#viewer');
 const eventLog = document.querySelector<HTMLPreElement>('#event-log');
 const DEMO_CONFIG = {
   brandText: 'BY MIRAME360.COM', // Change this to update the badge text
+  loop: true,
   sources: [
     { src: 'example_8k.mp4', type: 'mp4', quality: '8k', mimeType: 'video/mp4', bitrate: 50000000 },
     { src: 'example_4k.mp4', type: 'mp4', quality: '4k', mimeType: 'video/mp4', bitrate: 25000000 },
@@ -26,6 +27,7 @@ const btnZoomIn = document.querySelector<HTMLButtonElement>('#ui-zoom-in');
 const btnZoomOut = document.querySelector<HTMLButtonElement>('#ui-zoom-out');
 const zoomLevelDisplay = document.querySelector<HTMLElement>('#ui-zoom-level');
 const btnMotion = document.querySelector<HTMLButtonElement>('#ui-motion');
+const btnDebug = document.querySelector<HTMLButtonElement>('#ui-debug');
 const btnFullscreen = document.querySelector<HTMLButtonElement>('#ui-fullscreen');
 
 let player: WebGL360Player | undefined;
@@ -50,14 +52,14 @@ function updateUI() {
   const video = document.querySelector('video');
   if (video) {
     if (btnPlayPause) {
-      if (video.paused) {
+      if (state.isPaused) {
         btnPlayPause.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="2" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
       } else {
         btnPlayPause.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="2" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>';
       }
     }
     if (btnMute) {
-      if (video.muted) {
+      if (state.isMuted) {
         btnMute.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>';
       } else {
         btnMute.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>';
@@ -79,24 +81,27 @@ function updateUI() {
   if (btnMotion) {
     btnMotion.style.color = state.isMotionEnabled ? '#4ade80' : '#fff';
   }
+
+  if (btnDebug) {
+    btnDebug.style.color = state.isDebug ? '#4ade80' : '#fff';
+  }
 }
 
 setInterval(updateUI, 100);
 
 btnPlayPause?.addEventListener('click', () => {
-  const video = document.querySelector('video');
-  if (video?.paused) {
-    player?.play();
+  if (!player) return;
+  const state = player.getState();
+  if (state.isPaused) {
+    player.play();
   } else {
-    player?.pause();
+    player.pause();
   }
 });
 
 btnMute?.addEventListener('click', () => {
-  const video = document.querySelector('video');
-  if (video) {
-    video.muted = !video.muted;
-  }
+  if (!player) return;
+  player.setMuted(!player.getState().isMuted);
 });
 
 btnZoomIn?.addEventListener('click', () => {
@@ -124,6 +129,11 @@ btnMotion?.addEventListener('click', () => {
   }).catch(err => {
     console.error('Motion toggle failed', err);
   });
+});
+
+btnDebug?.addEventListener('click', () => {
+  if (!player) return;
+  player.setDebug(!player.getState().isDebug);
 });
 
 const syncFullscreenUI = () => {
@@ -210,6 +220,7 @@ function loadPlayer(targetQuality?: string) {
 
   player = createWebGL360Player(viewer, {
     sources,
+    loop: DEMO_CONFIG.loop,
     preSources: [
       { src: 'example_720p.mp4', type: 'mp4', quality: '720p' }
     ],
@@ -222,7 +233,7 @@ function loadPlayer(targetQuality?: string) {
     initialYaw: prevState?.yaw,
     initialPitch: prevState?.pitch,
     initialFov: prevState?.fov,
-    debug: true,
+    debug: false,
     autoplay: true,
     muted: true,
     sourceLoader: async ({ video, source, defaultLoad, waitForReady }) => {

@@ -71,6 +71,8 @@ export interface WebGL360PlayerOptions {
   playsInline?: boolean;
   crossOrigin?: '' | 'anonymous' | 'use-credentials';
   debug?: boolean;
+  /** Enable default keyboard shortcuts (Space: play/pause, m: mute, etc.) */
+  keyboardShortcuts?: boolean;
   analytics?: WebGL360Analytics;
   fallback?: WebGL360Fallback;
   sourceLoader?: WebGL360SourceLoader;
@@ -104,6 +106,7 @@ export interface NormalizedWebGL360PlayerOptions extends Required<
     | 'playsInline'
     | 'crossOrigin'
     | 'debug'
+    | 'keyboardShortcuts'
   >
 > {
   preSources?: WebGL360Source[];
@@ -138,6 +141,10 @@ export interface WebGL360PlayerState {
   fps: number;
   bitrate: number;
   isMotionEnabled: boolean;
+  isMuted: boolean;
+  isPaused: boolean;
+  isLooping: boolean;
+  isDebug: boolean;
   selectedSource?: WebGL360Source;
   attemptedSources: WebGL360Source[];
   error?: unknown;
@@ -147,10 +154,13 @@ export interface WebGL360Player {
   destroy: () => void;
   play: () => Promise<void>;
   pause: () => void;
+  stop: () => void;
   seek: (time: number) => void;
   setYaw: (yaw: number) => void;
   setPitch: (pitch: number) => void;
   setFov: (fov: number) => void;
+  setMuted: (muted: boolean) => void;
+  setDebug: (enabled: boolean) => void;
   setMotionEnabled: (enabled: boolean) => Promise<boolean>;
   getState: () => WebGL360PlayerState;
 }
