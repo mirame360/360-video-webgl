@@ -546,8 +546,13 @@ class WebGL360PlayerController {
 
     this.sourceLoaderCleanup = getSourceLoaderCleanup(result);
 
-    if (this.config.autoplay || this.state.stage !== 'main') {
-      await video.play();
+    if (this.config.autoplay) {
+      try {
+        await video.play();
+      } catch (error) {
+        if (this.config.debug) console.warn('WebGL360Player: Autoplay blocked or failed:', error);
+        // Do not throw here, just let the player be ready in a paused state
+      }
     }
   }
 
