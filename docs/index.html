@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>webgl-360-player demo</title>
+    <script type="module" crossorigin src="./assets/index-DanMXNOQ.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-DkQh_eVr.css">
+  </head>
+  <body>
+    <main class="demo-shell">
+      <section class="hero">
+        <p class="eyebrow">Framework-agnostic demo</p>
+        <h1>WebGL 360 video player</h1>
+        <p>
+          The demo loads the copied fixture at <code>/video_example.mp4</code> by default. You can keep that local path
+          or override it with your own remote HLS or MP4 equirectangular 360 video URL. This page imports the package
+          directly from the published <code>webgl-360-player</code> API, matching the public contract an external app
+          would use.
+        </p>
+      </section>
+
+      <section class="panel">
+        <div class="viewer-container" id="viewer-container">
+          <div id="viewer" class="viewer" aria-label="360 video viewer">
+            <p class="empty-state">Loading video...</p>
+          </div>
+
+          <div id="player-ui" class="player-ui hidden">
+            <div class="ui-top-left">
+              <div id="ui-brand-badge" class="brand-badge"></div>
+            </div>
+            
+            <div class="ui-top-right">
+              <div class="quality-wrapper">
+                <span>Quality:</span>
+                <select id="ui-quality" class="ui-select">
+                  <option value="4k">4k</option>
+                </select>
+              </div>
+              <div class="zoom-pill">
+                <button id="ui-zoom-in">+</button>
+                <span id="ui-zoom-level">1.0x</span>
+                <button id="ui-zoom-out">−</button>
+              </div>
+              <button id="ui-motion" class="motion-pill" title="Enable Motion Controls">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>
+              </button>
+            </div>
+
+            <div class="ui-bottom-bar">
+              <button id="ui-play-pause" class="ui-icon-btn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-pause"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+              </button>
+              <button id="ui-mute" class="ui-icon-btn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+              </button>
+              <input type="range" id="ui-progress" class="ui-progress-bar" min="0" max="100" value="0" step="0.1">
+              <span id="ui-time">-0:00</span>
+              <button id="ui-fullscreen" class="ui-icon-btn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="log-panel">
+        <h2>Events</h2>
+        <pre id="event-log">Waiting for input...</pre>
+      </section>
+    </main>
+  </body>
+</html>

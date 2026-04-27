@@ -1,0 +1,81 @@
+{
+  "name": "webgl-360-player",
+  "version": "0.1.0",
+  "description": "Framework-agnostic WebGL 360 video player with configurable HLS and MP4 source selection.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "main": "./dist/webgl-360-player.min.cjs",
+  "module": "./dist/webgl-360-player.min.js",
+  "browser": "./dist/webgl-360-player.standalone.umd.min.js",
+  "unpkg": "./dist/webgl-360-player.standalone.umd.min.js",
+  "jsdelivr": "./dist/webgl-360-player.standalone.umd.min.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/webgl-360-player.min.js",
+      "require": "./dist/webgl-360-player.min.cjs",
+      "default": "./dist/webgl-360-player.min.js"
+    },
+    "./standalone": {
+      "default": "./dist/webgl-360-player.standalone.umd.min.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "vite build --config vite.config.ts && vite build --config vite.standalone.config.ts && tsc -p tsconfig.build.json",
+    "check": "npm run lint && npm run typecheck && npm run test && npm run build && npm run test:dist",
+    "demo": "npm run build && vite demo --host 0.0.0.0",
+    "demo:build": "npm run build && vite build demo --outDir ../dist-demo --emptyOutDir",
+    "lint": "eslint . --max-warnings 0",
+    "pack:dry-run": "npm pack --dry-run --cache /tmp/npm-cache-webgl-360",
+    "test": "vitest run --config vitest.config.ts",
+    "test:dist": "vitest run --config vitest.dist.config.ts",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:unit": "vitest run --config vitest.unit.config.ts",
+    "test:watch": "vitest --config vitest.config.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": [
+    "360-video",
+    "webgl",
+    "hls",
+    "mp4",
+    "panorama",
+    "equirectangular"
+  ],
+  "peerDependencies": {
+    "react": ">=16.8.0",
+    "three": ">=0.164.0 <1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@types/three": "^0.164.0",
+    "eslint": "^10.2.1",
+    "globals": "^17.5.0",
+    "jsdom": "^29.1.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "three": "^0.164.1",
+    "typescript": "^5.4.5",
+    "typescript-eslint": "^8.59.0",
+    "vite": "^7.3.2",
+    "vitest": "^4.1.5"
+  },
+  "dependencies": {
+    "hls.js": "^1.6.16"
+  }
+}
