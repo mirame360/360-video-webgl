@@ -223,8 +223,9 @@ function loadPlayer(targetQuality?: string) {
   player?.destroy();
   viewer.innerHTML = '';
   
-  // Only reset hasStartedPlaying if this is a fresh load (no prevState)
-  if (!prevState) {
+  // Reset hasStartedPlaying if this is a fresh load 
+  // OR if the previous player existed but was still at the very beginning (never played)
+  if (!prevState || (prevState.isPaused && prevState.currentTime === 0 && !hasStartedPlaying)) {
     hasStartedPlaying = false;
   }
 
