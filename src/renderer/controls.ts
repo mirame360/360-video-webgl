@@ -18,6 +18,9 @@ export function createPointerControls(container: HTMLElement, target: ControlsTa
   let activePointerId: number | undefined;
   let lastX = 0;
   let lastY = 0;
+  let startX = 0;
+  let startY = 0;
+  let didMove = false;
 
   const handlePointerDown = (event: PointerEvent): void => {
     if (target.debug) {
@@ -29,6 +32,9 @@ export function createPointerControls(container: HTMLElement, target: ControlsTa
     activePointerId = event.pointerId;
     lastX = event.clientX;
     lastY = event.clientY;
+    startX = event.clientX;
+    startY = event.clientY;
+    didMove = false;
     container.setPointerCapture(event.pointerId);
   };
 
@@ -37,8 +43,17 @@ export function createPointerControls(container: HTMLElement, target: ControlsTa
       return;
     }
 
+    const dist = Math.sqrt(
+      Math.pow(event.clientX - startX, 2) + Math.pow(event.clientY - startY, 2)
+    );
+    
+    // Threshold of 5 pixels to differentiate click from drag
+    if (dist > 5) {
+      didMove = true;
+    }
+
     if (target.debug) {
-      console.info(`WebGL360Player Debug: Touch move at (${event.clientX}, ${event.clientY})`);
+      console.info(`WebGL360Player Debug: Touch move at (${event.clientX}, ${event.clientY}), didMove: ${didMove}`);
     }
 
     const deltaX = event.clientX - lastX;
@@ -55,14 +70,16 @@ export function createPointerControls(container: HTMLElement, target: ControlsTa
   const handlePointerUp = (event: PointerEvent): void => {
     if (activePointerId === event.pointerId) {
       if (target.debug) {
-        console.info(`WebGL360Player Debug: Touch end at (${event.clientX}, ${event.clientY})`);
+        console.info(`WebGL360Player Debug: Touch end at (${event.clientX}, ${event.clientY}), didMove: ${didMove}`);
       }
+      
+      // If we didn't move significantly, treat it as a click
+      if (!didMove) {
+        target.onClick?.(event);
+      }
+      
       activePointerId = undefined;
     }
-  };
-
-  const handleClick = (event: PointerEvent): void => {
-    target.onClick?.(event);
   };
 
   const handleWheel = (event: WheelEvent): void => {
@@ -75,7 +92,6 @@ export function createPointerControls(container: HTMLElement, target: ControlsTa
   container.addEventListener('pointermove', handlePointerMove);
   container.addEventListener('pointerup', handlePointerUp);
   container.addEventListener('pointercancel', handlePointerUp);
-  container.addEventListener('click', handleClick as any);
   container.addEventListener('wheel', handleWheel, { passive: false });
 
   return {
@@ -84,7 +100,6 @@ export function createPointerControls(container: HTMLElement, target: ControlsTa
       container.removeEventListener('pointermove', handlePointerMove);
       container.removeEventListener('pointerup', handlePointerUp);
       container.removeEventListener('pointercancel', handlePointerUp);
-      container.removeEventListener('click', handleClick as any);
       container.removeEventListener('wheel', handleWheel);
     },
   };
