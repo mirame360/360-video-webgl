@@ -222,7 +222,11 @@ function loadPlayer(targetQuality?: string) {
   const prevState = player?.getState();
   player?.destroy();
   viewer.innerHTML = '';
-  hasStartedPlaying = false;
+  
+  // Only reset hasStartedPlaying if this is a fresh load (no prevState)
+  if (!prevState) {
+    hasStartedPlaying = false;
+  }
 
   const sources = DEMO_CONFIG.sources;
 
@@ -239,11 +243,18 @@ function loadPlayer(targetQuality?: string) {
   }
 
   const defaultQual = targetQuality || '4k';
+  
+  // If we were already playing, the new player should autoplay to maintain continuity.
+  // If we never started, it stays stopped.
+  const shouldAutoplay = prevState ? !prevState.isPaused : false;
+  
+  // If we were already in the main or post stage, don't play the intro again.
+  const skipIntro = prevState && (prevState.stage === 'main' || prevState.stage === 'post');
 
   player = createWebGL360Player(viewer, {
     sources,
     loop: DEMO_CONFIG.loop,
-    preSources: [
+    preSources: skipIntro ? [] : [
       { src: 'example_720p.mp4', type: 'mp4', quality: '720p' }
     ],
     postSources: [
@@ -256,8 +267,8 @@ function loadPlayer(targetQuality?: string) {
     initialPitch: prevState?.pitch,
     initialFov: prevState?.fov,
     debug: false,
-    autoplay: false,
-    muted: false,
+    autoplay: shouldAutoplay,
+    muted: prevState ? prevState.isMuted : false,
     sourceLoader: async ({ video, source, defaultLoad, waitForReady }) => {
       if (source.type === 'hls' && Hls.isSupported()) {
         const hls = new Hls();
