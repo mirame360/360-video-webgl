@@ -71,6 +71,8 @@ export interface WebGL360PlayerOptions {
   playsInline?: boolean;
   crossOrigin?: '' | 'anonymous' | 'use-credentials';
   debug?: boolean;
+  /** Automatically hide UI controls after inactivity */
+  uiAutoHide?: boolean;
   /** Enable default keyboard shortcuts (Space: play/pause, m: mute, etc.) */
   keyboardShortcuts?: boolean;
   analytics?: WebGL360Analytics;
@@ -106,6 +108,7 @@ export interface NormalizedWebGL360PlayerOptions extends Required<
     | 'playsInline'
     | 'crossOrigin'
     | 'debug'
+    | 'uiAutoHide'
     | 'keyboardShortcuts'
   >
 > {

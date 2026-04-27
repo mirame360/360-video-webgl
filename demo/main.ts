@@ -34,6 +34,7 @@ const btnFullscreen = document.querySelector<HTMLButtonElement>('#ui-fullscreen'
 let player: WebGL360Player | undefined;
 let lastStateJson = '';
 let hasStartedPlaying = false;
+let uiHideTimer: number | undefined;
 
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
@@ -286,6 +287,28 @@ function loadPlayer(targetQuality?: string) {
       writeEvent('webgl_360_player_ready', state);
       uiContainer?.classList.remove('hidden');
 
+      // Auto-hide UI logic
+      const showUI = () => {
+        uiContainer?.classList.remove('ui-hidden');
+        if (uiHideTimer) window.clearTimeout(uiHideTimer);
+        
+        const playerState = player?.getState();
+        // Only start timer if autoHide is enabled and video is playing
+        if (!playerState?.isPaused) {
+          uiHideTimer = window.setTimeout(() => {
+            uiContainer?.classList.add('ui-hidden');
+          }, 3000);
+        }
+      };
+
+      // Show UI on any interaction
+      viewer.addEventListener('pointermove', showUI);
+      viewer.addEventListener('pointerdown', showUI);
+      uiContainer?.addEventListener('pointermove', showUI);
+      
+      // Initial show
+      showUI();
+
       if (uiBrandBadge) {
         const brandText = DEMO_CONFIG.brandText.trim();
         if (brandText) {
@@ -331,9 +354,16 @@ function loadPlayer(targetQuality?: string) {
     },
     onPlay() {
       hasStartedPlaying = true;
+      uiContainer?.classList.remove('ui-hidden');
+      if (uiHideTimer) window.clearTimeout(uiHideTimer);
+      uiHideTimer = window.setTimeout(() => {
+        uiContainer?.classList.add('ui-hidden');
+      }, 3000);
       writeEvent('play');
     },
     onPause() {
+      if (uiHideTimer) window.clearTimeout(uiHideTimer);
+      uiContainer?.classList.remove('ui-hidden');
       writeEvent('pause');
     },
     onEnded() {

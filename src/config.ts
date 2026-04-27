@@ -33,6 +33,7 @@ export function normalizePlayerOptions(options: WebGL360PlayerOptions): Normaliz
     playsInline: options.playsInline ?? true,
     crossOrigin: options.crossOrigin ?? 'anonymous',
     debug: options.debug ?? false,
+    uiAutoHide: options.uiAutoHide ?? true,
     keyboardShortcuts: options.keyboardShortcuts ?? true,
     analytics: options.analytics,
     fallback: options.fallback,
