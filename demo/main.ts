@@ -312,6 +312,9 @@ function loadPlayer(targetQuality?: string) {
       }
     },
     onClick(e) {
+      if (player) {
+        void player.togglePlay();
+      }
       writeEvent('click', { x: e.clientX, y: e.clientY });
     },
     onPlay() {
