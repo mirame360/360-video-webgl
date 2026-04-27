@@ -81,6 +81,39 @@ h1 {
   touch-action: none;
 }
 
+/* Big Play Button */
+.big-play-button {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80px;
+  height: 80px;
+  background: rgba(59, 130, 246, 0.8);
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 50;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  padding-left: 6px; /* Offset to visually center triangle */
+}
+
+.big-play-button:hover {
+  transform: translate(-50%, -50%) scale(1.1);
+  background: rgba(59, 130, 246, 1);
+}
+
+.big-play-button.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.8);
+}
+
 /* Player Overlay UI */
 .player-ui {
   position: absolute;

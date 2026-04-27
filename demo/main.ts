@@ -22,6 +22,7 @@ const uiQualitySelect = document.querySelector<HTMLSelectElement>('#ui-quality')
 const progressBar = document.querySelector<HTMLInputElement>('#ui-progress');
 const timeDisplay = document.querySelector<HTMLElement>('#ui-time');
 const btnPlayPause = document.querySelector<HTMLButtonElement>('#ui-play-pause');
+const btnBigPlay = document.querySelector<HTMLButtonElement>('#ui-big-play');
 const btnMute = document.querySelector<HTMLButtonElement>('#ui-mute');
 const btnZoomIn = document.querySelector<HTMLButtonElement>('#ui-zoom-in');
 const btnZoomOut = document.querySelector<HTMLButtonElement>('#ui-zoom-out');
@@ -70,6 +71,14 @@ function updateUI() {
         btnPlayPause.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="2" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>';
       }
     }
+
+    if (btnBigPlay) {
+      if (state.isPaused && state.mode === 'ready') {
+        btnBigPlay.classList.remove('hidden');
+      } else {
+        btnBigPlay.classList.add('hidden');
+      }
+    }
     
     if (btnMute) {
       if (state.isMuted) {
@@ -103,6 +112,11 @@ requestAnimationFrame(updateUI);
 btnPlayPause?.addEventListener('click', () => {
   if (!player) return;
   void player.togglePlay();
+});
+
+btnBigPlay?.addEventListener('click', () => {
+  if (!player) return;
+  void player.play();
 });
 
 btnMute?.addEventListener('click', () => {
@@ -240,8 +254,8 @@ function loadPlayer(targetQuality?: string) {
     initialPitch: prevState?.pitch,
     initialFov: prevState?.fov,
     debug: false,
-    autoplay: true,
-    muted: true,
+    autoplay: false,
+    muted: false,
     sourceLoader: async ({ video, source, defaultLoad, waitForReady }) => {
       if (source.type === 'hls' && Hls.isSupported()) {
         const hls = new Hls();
