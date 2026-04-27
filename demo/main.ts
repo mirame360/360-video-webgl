@@ -74,7 +74,7 @@ function updateUI() {
     }
 
     if (btnBigPlay) {
-      if (state.isPaused && state.mode === 'ready' && !hasStartedPlaying) {
+      if (state.isPaused && !hasStartedPlaying) {
         btnBigPlay.classList.remove('hidden');
       } else {
         btnBigPlay.classList.add('hidden');
