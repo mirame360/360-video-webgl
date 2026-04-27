@@ -33,6 +33,7 @@ const btnFullscreen = document.querySelector<HTMLButtonElement>('#ui-fullscreen'
 
 let player: WebGL360Player | undefined;
 let lastStateJson = '';
+let hasStartedPlaying = false;
 
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
@@ -73,7 +74,7 @@ function updateUI() {
     }
 
     if (btnBigPlay) {
-      if (state.isPaused && state.mode === 'ready') {
+      if (state.isPaused && state.mode === 'ready' && !hasStartedPlaying) {
         btnBigPlay.classList.remove('hidden');
       } else {
         btnBigPlay.classList.add('hidden');
@@ -221,6 +222,7 @@ function loadPlayer(targetQuality?: string) {
   const prevState = player?.getState();
   player?.destroy();
   viewer.innerHTML = '';
+  hasStartedPlaying = false;
 
   const sources = DEMO_CONFIG.sources;
 
@@ -313,6 +315,7 @@ function loadPlayer(targetQuality?: string) {
       writeEvent('click', { x: e.clientX, y: e.clientY });
     },
     onPlay() {
+      hasStartedPlaying = true;
       writeEvent('play');
     },
     onPause() {
