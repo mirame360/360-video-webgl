@@ -14,6 +14,17 @@ export interface ControlsHandle {
   destroy: () => void;
 }
 
+export function getDragPoseDelta(
+  deltaX: number,
+  deltaY: number,
+  isMotionEnabled: boolean,
+): { yaw: number; pitch: number } {
+  return {
+    yaw: -deltaX * 0.25,
+    pitch: deltaY * 0.25 * (isMotionEnabled ? -1 : 1),
+  };
+}
+
 export function createPointerControls(container: HTMLElement, target: ControlsTarget): ControlsHandle {
   const activePointers = new Map<number, { x: number; y: number }>();
   let lastX = 0;
@@ -63,9 +74,10 @@ export function createPointerControls(container: HTMLElement, target: ControlsTa
       const deltaX = event.clientX - lastX;
       const deltaY = event.clientY - lastY;
       const state = target.getState();
+      const poseDelta = getDragPoseDelta(deltaX, deltaY, state.isMotionEnabled);
 
-      target.setYaw(state.yaw - deltaX * 0.25);
-      target.setPitch(clamp(state.pitch + deltaY * 0.25, -89, 89));
+      target.setYaw(state.yaw + poseDelta.yaw);
+      target.setPitch(clamp(state.pitch + poseDelta.pitch, -89, 89));
       lastX = event.clientX;
       lastY = event.clientY;
     } else if (activePointers.size === 2) {
