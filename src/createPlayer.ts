@@ -1,5 +1,11 @@
 import { track } from './analytics';
-import { getSupportedSourceTypes, getIPhoneQualityCeiling } from './capabilities';
+import {
+  detectDeviceCapabilities,
+  getIPhoneQualityCeiling,
+  getSourceSupportList,
+  getSupportedSources,
+  getSupportedSourceTypes,
+} from './capabilities';
 import { clamp, normalizePlayerOptions } from './config';
 import { SceneRenderer } from './renderer/SceneRenderer';
 import { createPointerControls, type ControlsHandle } from './renderer/controls';
@@ -9,15 +15,22 @@ import { createLoader, type LoaderHandle } from './ui/loader';
 import { selectInitialSource } from './sourceSelection';
 import type {
   NormalizedWebGL360PlayerOptions,
+  WebGL360DiagnosticEvent,
   WebGL360FallbackContext,
   WebGL360Player,
   WebGL360PlayerOptions,
   WebGL360PlayerState,
+  WebGL360Quality,
+  WebGL360QualitySwitchResult,
   WebGL360SequenceStage,
   WebGL360Source,
   WebGL360SourceLoaderCleanup,
   WebGL360SourceLoaderResult,
 } from './types';
+
+interface PermissionedDeviceOrientationEventConstructor {
+  requestPermission?: () => Promise<PermissionState>;
+}
 
 export function createWebGL360Player(container: HTMLElement, options: WebGL360PlayerOptions): WebGL360Player {
   if (!container) {
@@ -70,7 +83,16 @@ class WebGL360PlayerController {
       isPaused: true,
       isLooping: config.loop,
       isDebug: config.debug,
+      availableQualities: [],
+      sourceSupport: [],
       attemptedSources: [],
+      diagnostics: {
+        contextLostCount: 0,
+        decodedFrames: 0,
+        droppedFrames: 0,
+        droppedFrameRatio: 0,
+        events: [],
+      },
     };
     this.loader = createLoader(container);
     this.container.dataset.webgl360Mode = 'initializing';
@@ -98,6 +120,7 @@ class WebGL360PlayerController {
       setMuted: (muted) => this.setMuted(muted),
       setDebug: (enabled) => this.setDebug(enabled),
       setMotionEnabled: (enabled) => this.setMotionEnabled(enabled),
+      setQuality: (quality) => this.setQuality(quality),
       getState: () => this.getState(),
     };
   }
@@ -197,7 +220,8 @@ class WebGL360PlayerController {
 
     if (enabled) {
       // iOS 13+ permission request
-      const DeviceOrientationEventAny = (globalThis as any).DeviceOrientationEvent;
+      const DeviceOrientationEventAny = globalThis.DeviceOrientationEvent as
+        PermissionedDeviceOrientationEventConstructor | undefined;
       if (DeviceOrientationEventAny && typeof DeviceOrientationEventAny.requestPermission === 'function') {
         try {
           const permission = await DeviceOrientationEventAny.requestPermission();
@@ -234,13 +258,86 @@ class WebGL360PlayerController {
     this.renderer?.setPose({ yaw: this.state.yaw, pitch: this.state.pitch, fov: this.state.fov });
   }
 
+  async setQuality(quality: WebGL360Quality): Promise<WebGL360QualitySwitchResult> {
+    if (!this.video || this.destroyed) {
+      return this.finishQualityChange({ ok: false, quality, reason: 'player is not ready' });
+    }
+
+    if (this.state.stage !== 'main') {
+      return this.finishQualityChange({ ok: false, quality, reason: 'quality can only be changed during the main stage' });
+    }
+
+    const candidates = selectInitialSource(this.config.sources.filter((source) => source.quality === quality), {
+      defaultQuality: quality,
+      maxQuality: quality,
+      sourcePreference: this.config.sourcePreference,
+      supportedTypes: this.getSupportedTypes(),
+      capabilities: this.state.deviceCapabilities,
+    }).candidates;
+
+    if (candidates.length === 0) {
+      return this.finishQualityChange({ ok: false, quality, reason: 'quality is not supported on this device' });
+    }
+
+    const previousSource = this.state.selectedSource;
+    const previousTime = this.video.currentTime || this.state.currentTime;
+    const wasPaused = this.video.paused;
+
+    this.setMode('loading');
+    this.loader.setState(`switching to ${quality}`);
+
+    try {
+      await this.trySources(candidates, { notifyReady: false, restartRenderer: true });
+      this.seek(previousTime);
+
+      if (!wasPaused) {
+        await this.play();
+      }
+
+      return this.finishQualityChange({
+        ok: true,
+        quality,
+        selectedSource: this.state.selectedSource,
+      });
+    } catch (error) {
+      if (previousSource) {
+        try {
+          await this.loadSource(previousSource);
+          await this.startRenderer();
+          this.seek(previousTime);
+          if (!wasPaused) {
+            await this.play();
+          }
+          this.setMode('ready');
+        } catch {
+          await this.failToFallback('quality_switch_restore_failed', error);
+        }
+      }
+
+      return this.finishQualityChange({
+        ok: false,
+        quality,
+        selectedSource: this.state.selectedSource,
+        reason: getErrorMessage(error),
+        error,
+      });
+    }
+  }
+
   getState(): WebGL360PlayerState {
     if (this.video) {
       this.state.isPaused = this.video.paused;
+      this.syncFrameDiagnostics();
     }
     return {
       ...this.state,
       attemptedSources: [...this.state.attemptedSources],
+      sourceSupport: [...this.state.sourceSupport],
+      availableQualities: [...this.state.availableQualities],
+      diagnostics: {
+        ...this.state.diagnostics,
+        events: [...this.state.diagnostics.events],
+      },
     };
   }
 
@@ -311,11 +408,13 @@ class WebGL360PlayerController {
       case 'Digit7':
       case 'Digit8':
       case 'Digit9':
+      {
         const percent = parseInt(event.code.replace('Digit', ''), 10) * 10;
         if (this.video && this.video.duration) {
           this.seek((this.video.duration * percent) / 100);
         }
         break;
+      }
     }
   };
 
@@ -332,6 +431,7 @@ class WebGL360PlayerController {
       const video = this.createVideoElement();
       this.video = video;
       this.container.appendChild(video);
+      this.syncDeviceCapabilities();
 
       // Determine initial stage
       if (this.config.preSources && this.config.preSources.length > 0) {
@@ -347,12 +447,13 @@ class WebGL360PlayerController {
   }
 
   private async runSequenceStage(stage: WebGL360SequenceStage, sources: WebGL360Source[]): Promise<void> {
-    const supportedTypes = this.config.sourceLoader ? ['hls' as const, 'mp4' as const] : getSupportedSourceTypes(this.video!);
+    const supportedTypes = this.getSupportedTypes();
     const selection = selectInitialSource(sources, {
       defaultQuality: this.config.defaultQuality,
       maxQuality: this.config.maxQuality,
       sourcePreference: this.config.sourcePreference,
       supportedTypes,
+      capabilities: this.state.deviceCapabilities,
     });
 
     if (!selection.selectedSource) {
@@ -362,7 +463,12 @@ class WebGL360PlayerController {
     await this.trySources(selection.candidates);
   }
 
-  private async trySources(candidates: WebGL360Source[]): Promise<void> {
+  private async trySources(
+    candidates: WebGL360Source[],
+    options: { notifyReady?: boolean; restartRenderer?: boolean } = {},
+  ): Promise<void> {
+    const notifyReady = options.notifyReady ?? true;
+    const restartRenderer = options.restartRenderer ?? false;
     let lastError: unknown;
 
     for (const source of candidates) {
@@ -371,12 +477,13 @@ class WebGL360PlayerController {
       }
 
       this.state.selectedSource = source;
+      this.state.diagnostics.selectedSource = source;
       this.state.attemptedSources.push(source);
       this.loader.setState(`loading ${source.quality} ${source.type.toUpperCase()}`);
 
       try {
         await this.loadSource(source);
-        if (!this.renderer) {
+        if (restartRenderer || !this.renderer) {
           await this.startRenderer();
         }
         this.setMode('ready');
@@ -390,12 +497,18 @@ class WebGL360PlayerController {
           attemptedSourceCount: this.state.attemptedSources.length,
           stage: this.state.stage,
         });
-        if (this.state.stage === 'main') {
+        if (notifyReady && this.state.stage === 'main') {
           this.config.onReady?.(this.getState());
         }
         return;
       } catch (error) {
         lastError = error;
+        this.recordDiagnostic({
+          type: 'source_error',
+          message: `Source ${source.quality} ${source.type.toUpperCase()} failed`,
+          source,
+          error: getErrorMessage(error),
+        });
         track(this.config.analytics, 'webgl_360_player_source_error', {
           selectedSourceType: source.type,
           selectedQuality: source.quality,
@@ -429,23 +542,23 @@ class WebGL360PlayerController {
       if (this.config.debug) console.info('Video: playing');
     });
 
+    video.addEventListener('error', () => {
+      const error = video.error;
+      this.recordDiagnostic({
+        type: 'decode_error',
+        message: error?.message || 'Video decode or network error',
+        source: this.state.selectedSource,
+        error: error ? `code ${error.code}: ${error.message}` : undefined,
+      });
+    });
+
     video.addEventListener('ended', () => {
       if (this.config.debug) console.info('Video: ended', { stage: this.state.stage });
       void this.handleEnded();
     });
 
     if (this.config.debug) {
-      video.addEventListener('error', () => {
-        const error = video.error;
-        console.error('Video: error', {
-          code: error?.code,
-          message: error?.message,
-          rawError: error,
-          src: video.src,
-          readyState: video.readyState,
-          networkState: video.networkState,
-        });
-      });
+      video.addEventListener('error', () => console.error('Video: error', this.state.diagnostics.lastDecodeError));
       video.addEventListener('stalled', () => console.warn('Video: stalled'));
       video.addEventListener('waiting', () => console.warn('Video: waiting'));
     }
@@ -573,6 +686,12 @@ class WebGL360PlayerController {
       maxFov: this.config.maxFov,
       debug: this.config.debug,
       onContextLost: () => {
+        this.state.diagnostics.contextLostCount++;
+        this.recordDiagnostic({
+          type: 'context_lost',
+          message: 'WebGL context lost',
+          source: this.state.selectedSource,
+        });
         void this.failToFallback('context_lost', new Error('WebGL context lost.'));
       },
       onFrame: () => {
@@ -611,12 +730,92 @@ class WebGL360PlayerController {
     }
   }
 
+  private getSupportedTypes(): ('hls' | 'mp4')[] {
+    return this.config.sourceLoader ? ['hls', 'mp4'] : getSupportedSourceTypes(this.video!);
+  }
+
+  private syncDeviceCapabilities(): void {
+    if (!this.video) {
+      return;
+    }
+
+    const capabilities = detectDeviceCapabilities(this.video);
+    capabilities.supportedTypes = this.getSupportedTypes();
+    this.state.deviceCapabilities = capabilities;
+    this.state.sourceSupport = getSourceSupportList(this.config.sources, capabilities);
+    this.state.availableQualities = Array.from(new Set(
+      getSupportedSources(this.config.sources, capabilities).map((source) => source.quality),
+    ));
+  }
+
+  private syncFrameDiagnostics(): void {
+    const quality = this.video && 'getVideoPlaybackQuality' in this.video
+      ? this.video.getVideoPlaybackQuality()
+      : undefined;
+
+    if (!quality) {
+      return;
+    }
+
+    this.state.diagnostics.decodedFrames = quality.totalVideoFrames;
+    this.state.diagnostics.droppedFrames = quality.droppedVideoFrames;
+    this.state.diagnostics.droppedFrameRatio = quality.totalVideoFrames > 0
+      ? quality.droppedVideoFrames / quality.totalVideoFrames
+      : 0;
+  }
+
+  private recordDiagnostic(input: Omit<WebGL360DiagnosticEvent, 'at'>): void {
+    const event: WebGL360DiagnosticEvent = {
+      ...input,
+      at: Date.now(),
+    };
+
+    if (event.type === 'source_error') {
+      this.state.diagnostics.lastSourceError = event;
+    } else if (event.type === 'decode_error') {
+      this.state.diagnostics.lastDecodeError = event;
+    }
+
+    this.state.diagnostics.selectedSource = this.state.selectedSource;
+    this.state.diagnostics.events = [
+      ...this.state.diagnostics.events.slice(-19),
+      event,
+    ];
+    this.config.onDiagnostic?.(event, this.getState());
+  }
+
+  private finishQualityChange(result: WebGL360QualitySwitchResult): WebGL360QualitySwitchResult {
+    this.recordDiagnostic({
+      type: 'quality_change',
+      message: result.ok ? `Quality changed to ${result.quality}` : `Quality change to ${result.quality} failed`,
+      source: result.selectedSource,
+      reason: result.reason,
+      error: result.error ? getErrorMessage(result.error) : undefined,
+    });
+    this.config.onQualityChange?.(result, this.getState());
+    track(this.config.analytics, 'webgl_360_player_quality_change', {
+      ok: result.ok,
+      quality: result.quality,
+      selectedQuality: result.selectedSource?.quality,
+      reason: result.reason,
+    });
+    return result;
+  }
+
   private async failToFallback(reason: string, error: unknown): Promise<void> {
     if (this.destroyed || this.state.mode === 'fallback') {
       return;
     }
 
     this.state.error = error;
+    this.state.diagnostics.lastFallbackReason = reason;
+    this.recordDiagnostic({
+      type: 'fallback',
+      message: `Fallback triggered: ${reason}`,
+      source: this.state.selectedSource,
+      reason,
+      error: getErrorMessage(error),
+    });
     this.setMode('fallback');
     this.loader.setState('fallback in progress');
     this.config.onError?.(error, this.getState());
@@ -708,13 +907,19 @@ function createDebugOverlay(container: HTMLElement): DebugOverlayHandle {
       const source = state.selectedSource;
       const res = source ? `${source.width || '?'}x${source.height || '?'}` : 'N/A';
       const bitrate = state.bitrate ? `${(state.bitrate / 1000000).toFixed(2)} Mbps` : 'N/A';
+      const dropped = `${state.diagnostics.droppedFrames}/${state.diagnostics.decodedFrames} (${(state.diagnostics.droppedFrameRatio * 100).toFixed(1)}%)`;
+      const caps = state.deviceCapabilities;
       
       root.textContent = [
         `Mode: ${state.mode}`,
         `Source: ${source?.type.toUpperCase() || 'N/A'} (${source?.quality || 'N/A'})`,
         `Res: ${res}`,
         `FPS: ${state.fps}`,
+        `Dropped: ${dropped}`,
         `Bitrate: ${bitrate}`,
+        `Texture cap: ${caps?.maxTextureSize || 'N/A'}`,
+        `HEVC: ${caps?.hevcSupported ? 'YES' : 'NO'}`,
+        `Last error: ${state.diagnostics.lastSourceError?.message || state.diagnostics.lastDecodeError?.message || 'N/A'}`,
         `Yaw/Pitch: ${state.yaw.toFixed(1)}° / ${state.pitch.toFixed(1)}°`,
         `FOV: ${state.fov.toFixed(1)}°`,
         `Muted: ${state.isMuted ? 'YES' : 'NO'}`,

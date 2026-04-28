@@ -42,7 +42,6 @@ export const ReactWebGL360Player = forwardRef<PlayerInstance, ReactWebGL360Playe
       player.destroy();
       playerRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -83,7 +82,14 @@ export const ReactWebGL360Player = forwardRef<PlayerInstance, ReactWebGL360Playe
       setMuted: (muted: boolean) => playerRef.current?.setMuted(muted),
       setDebug: (enabled: boolean) => playerRef.current?.setDebug(enabled),
       setMotionEnabled: (enabled: boolean) => playerRef.current?.setMotionEnabled(enabled) ?? Promise.resolve(false),
-      getState: () => playerRef.current?.getState()!,
+      setQuality: (quality) => playerRef.current?.setQuality(quality) ?? Promise.resolve({ ok: false, quality, reason: 'player is not ready' }),
+      getState: () => {
+        if (!playerRef.current) {
+          throw new Error('WebGL360Player is not initialized.');
+        }
+
+        return playerRef.current.getState();
+      },
       destroy: () => playerRef.current?.destroy(),
     };
   }, []);

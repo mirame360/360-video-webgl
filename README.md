@@ -65,10 +65,54 @@ import { createWebGL360Player } from 'webgl-360-player';
 
 const container = document.getElementById('player');
 const player = createWebGL360Player(container, {
-  sources: [{ src: 'video_4k.mp4', type: 'mp4', quality: '4k' }],
-  autoplay: true
+  sources: [
+    {
+      src: 'video_4k.mp4',
+      type: 'mp4',
+      quality: '4k',
+      width: 3840,
+      height: 1920,
+      mimeType: 'video/mp4',
+    },
+    {
+      src: 'video.m3u8',
+      type: 'hls',
+      quality: 'hls',
+      mimeType: 'application/vnd.apple.mpegurl',
+    },
+  ],
+  autoplay: true,
+  analytics: {
+    track(event, payload) {
+      console.log(event, payload);
+    },
+  },
+  onDiagnostic(event, state) {
+    console.log('diagnostic', event, state.diagnostics);
+  },
 });
 ```
+
+## Public API
+
+```ts
+const player = createWebGL360Player(container, options);
+
+await player.play();
+player.pause();
+player.seek(30);
+player.setYaw(90);
+player.setPitch(10);
+player.setFov(70);
+player.setMuted(true);
+player.setDebug(true);
+await player.setMotionEnabled(true);
+await player.setQuality('4k');
+const state = player.getState();
+player.destroy();
+```
+
+`getState()` returns the active source, supported qualities, source support reasons, detected device capabilities, playback counters, and recent diagnostic events.
 
 ## Configuration Options
 
@@ -83,12 +127,74 @@ const player = createWebGL360Player(container, {
 | `keyboardShortcuts` | `boolean` | Enable Space (play/pause), M (mute), arrows (seek). Default: `true`. |
 | `debug` | `boolean` | Enables the green performance overlay and touch logging. |
 | `motionControls` | `boolean` | Enables/Disables gyroscope support. |
+| `sourceLoader` | `function` | Optional custom loader for HLS or application-specific source handling. |
+| `analytics` | `object` | Optional `{ track(event, payload) }` adapter for host analytics. |
 | `onClick` | `function` | Callback for user clicks on the canvas. |
 | `onReady` | `function` | Callback when player is initialized. |
 | `onPlay` | `function` | Callback when playback starts. |
 | `onPause` | `function` | Callback when playback pauses. |
 | `onTimeUpdate` | `function` | Callback for playback progress (time, duration). |
 | `onEnded` | `function` | Callback when the entire sequence ends. |
+| `onQualityChange` | `function` | Called after `setQuality()` succeeds or fails. |
+| `onDiagnostic` | `function` | Called for source errors, decode errors, context loss, fallback, and quality changes. |
+
+## Observability
+
+The player exposes diagnostics through `player.getState().diagnostics`, `onDiagnostic`, and analytics events.
+
+Diagnostics include:
+
+- `selectedSource`
+- source failure reason and source metadata
+- decode/media errors from the underlying video element
+- WebGL context loss count
+- decoded and dropped frame counts when `getVideoPlaybackQuality()` is available
+- device/browser metadata including user agent, supported source types, HEVC/H.264 support, and WebGL texture limit
+- quality change success/failure events
+- fallback reason
+
+Useful analytics events:
+
+- `webgl_360_player_attempted`
+- `webgl_360_player_ready`
+- `webgl_360_player_source_error`
+- `webgl_360_player_quality_change`
+- `webgl_360_player_fallback`
+
+## HLS
+
+The core accepts HLS sources, but non-Safari browsers need a `sourceLoader` such as `hls.js`.
+
+```ts
+import Hls from 'hls.js';
+
+createWebGL360Player(container, {
+  sources: [{ src: 'video.m3u8', type: 'hls', quality: 'hls' }],
+  sourceLoader: async ({ video, source, defaultLoad, waitForReady }) => {
+    if (source.type === 'hls' && Hls.isSupported()) {
+      const hls = new Hls();
+      hls.loadSource(source.src);
+      hls.attachMedia(video);
+      await waitForReady();
+      return () => hls.destroy();
+    }
+
+    await defaultLoad();
+  },
+});
+```
+
+## Packaging Notes
+
+- Keep large demo videos out of git history when possible. Use a CDN, release asset, or Git LFS for production-sized fixtures.
+- Published package contents are limited to `dist`, `README.md`, `CHANGELOG.md`, browser support docs, release QA checklist, and `LICENSE`.
+- Run `npm run check` before publishing.
+
+See:
+
+- `CHANGELOG.md`
+- `docs/browser-support.md`
+- `docs/release-qa-checklist.md`
 
 ## License
 

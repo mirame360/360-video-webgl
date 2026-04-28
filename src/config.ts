@@ -46,6 +46,8 @@ export function normalizePlayerOptions(options: WebGL360PlayerOptions): Normaliz
     onPause: options.onPause,
     onTimeUpdate: options.onTimeUpdate,
     onEnded: options.onEnded,
+    onQualityChange: options.onQualityChange,
+    onDiagnostic: options.onDiagnostic,
   };
 }
 

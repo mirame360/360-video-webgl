@@ -1,18 +1,24 @@
 import './styles.css';
 import Hls from 'hls.js';
-import { createWebGL360Player, isSecureContext, type WebGL360Player, type WebGL360Source, type WebGL360SourceType } from '../src/index';
+import { createWebGL360Player, isSecureContext, type WebGL360Player, type WebGL360Source } from '../src/index';
 
-const form = document.querySelector<HTMLFormElement>('#demo-form');
 const viewer = document.querySelector<HTMLElement>('#viewer');
 const eventLog = document.querySelector<HTMLPreElement>('#event-log');
 const DEMO_CONFIG = {
   brandText: 'BY MIRAME360.COM', // Change this to update the badge text
   loop: true,
   sources: [
-    { src: 'example_8k.mp4', type: 'mp4', quality: '8k', mimeType: 'video/mp4', bitrate: 50000000 },
-    { src: 'example_4k.mp4', type: 'mp4', quality: '4k', mimeType: 'video/mp4', bitrate: 25000000 },
-    { src: 'example_1080p.mp4', type: 'mp4', quality: '1080p', mimeType: 'video/mp4', bitrate: 5000000 },
-    { src: 'example_720p.mp4', type: 'mp4', quality: '720p', mimeType: 'video/mp4', bitrate: 2500000 }
+    {
+      src: 'https://stream-akamai.castr.com/5b9352dbda7b8c769937e459/live_2361c920455111ea85db6911fe397b9e/index.fmp4.m3u8',
+      type: 'hls',
+      quality: 'hls-live',
+      mimeType: 'application/vnd.apple.mpegurl',
+      label: 'Castr HLS Live',
+    },
+    { src: 'example_8k.mp4', type: 'mp4', quality: '8k', width: 7680, height: 3840, mimeType: 'video/mp4; codecs="hev1"', bitrate: 76000000 },
+    { src: 'example_4k.mp4', type: 'mp4', quality: '4k', width: 3840, height: 1920, mimeType: 'video/mp4; codecs="hvc1"', bitrate: 25000000 },
+    { src: 'example_1080p.mp4', type: 'mp4', quality: '1080p', width: 1920, height: 960, mimeType: 'video/mp4', bitrate: 5000000 },
+    { src: 'example_720p.mp4', type: 'mp4', quality: '720p', width: 1280, height: 640, mimeType: 'video/mp4', bitrate: 2500000 }
   ] as WebGL360Source[]
 };
 
@@ -230,9 +236,7 @@ function loadPlayer(targetQuality?: string) {
     hasStartedPlaying = false;
   }
 
-  const sources = targetQuality
-    ? DEMO_CONFIG.sources.filter((source) => source.quality === targetQuality)
-    : DEMO_CONFIG.sources;
+  const sources = DEMO_CONFIG.sources;
 
   if (sources.length === 0) {
     viewer.innerHTML = '<p class="empty-state">No source URLs provided in DEMO_CONFIG.</p>';
@@ -243,7 +247,6 @@ function loadPlayer(targetQuality?: string) {
   writeEvent('loading_player', {
     sources,
     targetQuality,
-    strictQualitySelection: Boolean(targetQuality),
     isSecure: isSecureContext(),
   });
 
@@ -329,6 +332,8 @@ function loadPlayer(targetQuality?: string) {
       if (uiQualitySelect) {
         const currentOptions = Array.from(uiQualitySelect.options).map(o => o.value).join(',');
         const qualities = Array.from(new Set(DEMO_CONFIG.sources.map(s => s.quality)));
+        const availableQualities = new Set(state.availableQualities);
+        const supportByQuality = new Map(state.sourceSupport.map((support) => [support.source.quality, support]));
         
         if (currentOptions !== qualities.join(',')) {
           uiQualitySelect.innerHTML = '';
@@ -338,6 +343,12 @@ function loadPlayer(targetQuality?: string) {
             option.textContent = quality;
             uiQualitySelect.appendChild(option);
           }
+        }
+
+        for (const option of Array.from(uiQualitySelect.options)) {
+          const support = supportByQuality.get(option.value);
+          option.disabled = !availableQualities.has(option.value);
+          option.title = support && !support.supported && support.reason ? support.reason : '';
         }
         
         if (state.selectedSource) {
@@ -401,7 +412,23 @@ function loadPlayer(targetQuality?: string) {
 
 uiQualitySelect?.addEventListener('change', () => {
   const targetQuality = uiQualitySelect.value;
-  loadPlayer(targetQuality);
+  if (!player) {
+    loadPlayer(targetQuality);
+    return;
+  }
+
+  const previousQuality = player.getState().selectedSource?.quality;
+  player.setQuality(targetQuality).then((result) => {
+    writeEvent('quality_change', result);
+    if (!result.ok && previousQuality) {
+      uiQualitySelect.value = previousQuality;
+    }
+  }).catch((error) => {
+    writeEvent('quality_change_failed', { targetQuality, error: String(error) });
+    if (previousQuality) {
+      uiQualitySelect.value = previousQuality;
+    }
+  });
 });
 
 queueMicrotask(() => {

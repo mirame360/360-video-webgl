@@ -13,6 +13,61 @@ export interface WebGL360Source {
   label?: string;
 }
 
+export interface WebGL360DeviceCapabilities {
+  supportedTypes: WebGL360SourceType[];
+  maxTextureSize: number;
+  maxVideoPixels: number;
+  maxVideoWidth: number;
+  maxVideoHeight: number;
+  hevcSupported: boolean;
+  h264Supported: boolean;
+  isIPhone: boolean;
+  isAndroid: boolean;
+  userAgent: string;
+}
+
+export interface WebGL360SourceSupport {
+  source: WebGL360Source;
+  supported: boolean;
+  reason?: string;
+}
+
+export interface WebGL360QualitySwitchResult {
+  ok: boolean;
+  quality: WebGL360Quality;
+  selectedSource?: WebGL360Source;
+  reason?: string;
+  error?: unknown;
+}
+
+export type WebGL360DiagnosticEventType =
+  | 'source_error'
+  | 'decode_error'
+  | 'context_lost'
+  | 'quality_change'
+  | 'fallback';
+
+export interface WebGL360DiagnosticEvent {
+  type: WebGL360DiagnosticEventType;
+  message: string;
+  at: number;
+  source?: WebGL360Source;
+  reason?: string;
+  error?: string;
+}
+
+export interface WebGL360Diagnostics {
+  selectedSource?: WebGL360Source;
+  lastSourceError?: WebGL360DiagnosticEvent;
+  lastDecodeError?: WebGL360DiagnosticEvent;
+  lastFallbackReason?: string;
+  contextLostCount: number;
+  decodedFrames: number;
+  droppedFrames: number;
+  droppedFrameRatio: number;
+  events: WebGL360DiagnosticEvent[];
+}
+
 export interface WebGL360Analytics {
   track: (event: string, payload?: Record<string, unknown>) => void;
 }
@@ -87,6 +142,8 @@ export interface WebGL360PlayerOptions {
   onPause?: () => void;
   onTimeUpdate?: (currentTime: number, duration: number) => void;
   onEnded?: () => void;
+  onQualityChange?: (result: WebGL360QualitySwitchResult, state: WebGL360PlayerState) => void;
+  onDiagnostic?: (event: WebGL360DiagnosticEvent, state: WebGL360PlayerState) => void;
 }
 
 export interface NormalizedWebGL360PlayerOptions extends Required<
@@ -128,6 +185,8 @@ export interface NormalizedWebGL360PlayerOptions extends Required<
   onPause?: () => void;
   onTimeUpdate?: (currentTime: number, duration: number) => void;
   onEnded?: () => void;
+  onQualityChange?: (result: WebGL360QualitySwitchResult, state: WebGL360PlayerState) => void;
+  onDiagnostic?: (event: WebGL360DiagnosticEvent, state: WebGL360PlayerState) => void;
 }
 
 export type WebGL360PlayerMode = 'idle' | 'loading' | 'ready' | 'fallback' | 'error' | 'destroyed';
@@ -148,8 +207,12 @@ export interface WebGL360PlayerState {
   isPaused: boolean;
   isLooping: boolean;
   isDebug: boolean;
+  availableQualities: WebGL360Quality[];
+  deviceCapabilities?: WebGL360DeviceCapabilities;
   selectedSource?: WebGL360Source;
+  sourceSupport: WebGL360SourceSupport[];
   attemptedSources: WebGL360Source[];
+  diagnostics: WebGL360Diagnostics;
   error?: unknown;
 }
 
@@ -166,6 +229,7 @@ export interface WebGL360Player {
   setMuted: (muted: boolean) => void;
   setDebug: (enabled: boolean) => void;
   setMotionEnabled: (enabled: boolean) => Promise<boolean>;
+  setQuality: (quality: WebGL360Quality) => Promise<WebGL360QualitySwitchResult>;
   getState: () => WebGL360PlayerState;
 }
 
@@ -174,6 +238,7 @@ export interface SourceSelectionOptions {
   maxQuality?: WebGL360Quality;
   sourcePreference: WebGL360SourceType[];
   supportedTypes?: WebGL360SourceType[];
+  capabilities?: WebGL360DeviceCapabilities;
 }
 
 export interface SourceSelectionResult {

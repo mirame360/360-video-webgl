@@ -19,7 +19,23 @@ describe('ReactWebGL360Player', () => {
     setMuted: vi.fn(),
     setDebug: vi.fn(),
     setMotionEnabled: vi.fn().mockResolvedValue(true),
-    getState: vi.fn().mockReturnValue({ mode: 'ready', yaw: 0, pitch: 0, fov: 75 }),
+    setQuality: vi.fn().mockResolvedValue({ ok: true, quality: '1080p' }),
+    getState: vi.fn().mockReturnValue({
+      mode: 'ready',
+      yaw: 0,
+      pitch: 0,
+      fov: 75,
+      availableQualities: ['1080p'],
+      sourceSupport: [],
+      attemptedSources: [],
+      diagnostics: {
+        contextLostCount: 0,
+        decodedFrames: 0,
+        droppedFrames: 0,
+        droppedFrameRatio: 0,
+        events: [],
+      },
+    }),
   };
 
   vi.spyOn(createPlayerMod, 'createWebGL360Player').mockReturnValue(mockPlayer);

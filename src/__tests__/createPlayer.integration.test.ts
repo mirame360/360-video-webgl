@@ -60,6 +60,15 @@ describe('createWebGL360Player integration', () => {
         return '';
       },
     });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation((contextId: string) => {
+      if (contextId === 'webgl' || contextId === 'experimental-webgl') {
+        return {
+          MAX_TEXTURE_SIZE: 0x0d33,
+          getParameter: vi.fn(() => 4096),
+        } as unknown as RenderingContext;
+      }
+      return null;
+    });
   });
 
   afterEach(() => {
@@ -193,7 +202,7 @@ describe('createWebGL360Player integration', () => {
     expect(player.getState().selectedSource?.quality).toBe('4k');
   });
 
-  it('honors an explicit 8k maxQuality override on iPhone', async () => {
+  it('keeps device capability checks even when 8k maxQuality is explicit on iPhone', async () => {
     vi.stubGlobal('navigator', {
       userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
     });
@@ -209,7 +218,59 @@ describe('createWebGL360Player integration', () => {
 
     await vi.waitFor(() => expect(onReady).toHaveBeenCalledOnce());
 
+    expect(player.getState().selectedSource?.quality).toBe('4k');
+    expect(player.getState().availableQualities).toEqual(['4k']);
+  });
+
+  it('selects 8k when device capabilities allow it', async () => {
+    vi.stubGlobal('navigator', {
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) Safari/605.1.15',
+    });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation((contextId: string) => {
+      if (contextId === 'webgl' || contextId === 'experimental-webgl') {
+        return {
+          MAX_TEXTURE_SIZE: 0x0d33,
+          getParameter: vi.fn(() => 8192),
+        } as unknown as RenderingContext;
+      }
+      return null;
+    });
+
+    const container = createContainer();
+    const onReady = vi.fn();
+    const player = createWebGL360Player(container, {
+      sources: [eightKSource, fourKSource],
+      defaultQuality: '8k',
+      maxQuality: '8k',
+      onReady,
+    });
+
+    await vi.waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+
     expect(player.getState().selectedSource?.quality).toBe('8k');
+    expect(player.getState().availableQualities).toContain('8k');
+  });
+
+  it('switches quality through the public API without recreating the player', async () => {
+    const container = createContainer();
+    const onReady = vi.fn();
+    const onQualityChange = vi.fn();
+    const player = createWebGL360Player(container, {
+      sources: [fourKSource, mp4Source],
+      defaultQuality: '1080p',
+      sourcePreference: ['mp4', 'hls'],
+      onReady,
+      onQualityChange,
+    });
+
+    await vi.waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+    expect(player.getState().selectedSource?.quality).toBe('1080p');
+
+    const result = await player.setQuality('4k');
+
+    expect(result).toMatchObject({ ok: true, quality: '4k' });
+    expect(player.getState().selectedSource?.quality).toBe('4k');
+    expect(onQualityChange).toHaveBeenCalledWith(expect.objectContaining({ ok: true, quality: '4k' }), expect.any(Object));
   });
 });
 

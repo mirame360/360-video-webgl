@@ -26,8 +26,14 @@
     "access": "public"
   },
   "files": [
-    "dist",
+    "dist/**/*.d.ts",
+    "dist/webgl-360-player.min.cjs",
+    "dist/webgl-360-player.min.js",
+    "dist/webgl-360-player.standalone.umd.min.js",
     "README.md",
+    "CHANGELOG.md",
+    "docs/browser-support.md",
+    "docs/release-qa-checklist.md",
     "LICENSE"
   ],
   "scripts": {

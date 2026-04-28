@@ -1,3 +1,4 @@
+import { getSourceSupport } from './capabilities';
 import type {
   SourceSelectionOptions,
   SourceSelectionResult,
@@ -38,6 +39,7 @@ export function buildSourceCandidateQueue(
 
   const supported = sources
     .filter((source) => supportedTypes.includes(source.type))
+    .filter((source) => !options.capabilities || getSourceSupport(source, options.capabilities).supported)
     .filter((source) => getSourceQualityRank(source) <= maxRank);
 
   if (supported.length === 0) {
