@@ -28,6 +28,20 @@ const mp4Source: WebGL360Source = {
   mimeType: 'video/mp4',
 };
 
+const fourKSource: WebGL360Source = {
+  src: '/video-4k.mp4',
+  type: 'mp4',
+  quality: '4k',
+  mimeType: 'video/mp4',
+};
+
+const eightKSource: WebGL360Source = {
+  src: '/video-8k.mp4',
+  type: 'mp4',
+  quality: '8k',
+  mimeType: 'video/mp4',
+};
+
 describe('createWebGL360Player integration', () => {
   beforeEach(() => {
     rendererMocks.destroy.mockClear();
@@ -159,6 +173,43 @@ describe('createWebGL360Player integration', () => {
     expect(container.querySelector('.webgl-360-player__error')?.textContent).toContain(
       'The 360 video player could not start',
     );
+  });
+
+  it('applies the iPhone quality ceiling when maxQuality is not configured', async () => {
+    vi.stubGlobal('navigator', {
+      userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
+    });
+
+    const container = createContainer();
+    const onReady = vi.fn();
+    const player = createWebGL360Player(container, {
+      sources: [eightKSource, fourKSource],
+      defaultQuality: '8k',
+      onReady,
+    });
+
+    await vi.waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+
+    expect(player.getState().selectedSource?.quality).toBe('4k');
+  });
+
+  it('honors an explicit 8k maxQuality override on iPhone', async () => {
+    vi.stubGlobal('navigator', {
+      userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
+    });
+
+    const container = createContainer();
+    const onReady = vi.fn();
+    const player = createWebGL360Player(container, {
+      sources: [eightKSource, fourKSource],
+      defaultQuality: '8k',
+      maxQuality: '8k',
+      onReady,
+    });
+
+    await vi.waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+
+    expect(player.getState().selectedSource?.quality).toBe('8k');
   });
 });
 

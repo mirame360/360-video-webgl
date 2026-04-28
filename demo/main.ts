@@ -230,7 +230,9 @@ function loadPlayer(targetQuality?: string) {
     hasStartedPlaying = false;
   }
 
-  const sources = DEMO_CONFIG.sources;
+  const sources = targetQuality
+    ? DEMO_CONFIG.sources.filter((source) => source.quality === targetQuality)
+    : DEMO_CONFIG.sources;
 
   if (sources.length === 0) {
     viewer.innerHTML = '<p class="empty-state">No source URLs provided in DEMO_CONFIG.</p>';
@@ -238,7 +240,12 @@ function loadPlayer(targetQuality?: string) {
     return;
   }
 
-  writeEvent('loading_player', { sources, targetQuality, isSecure: isSecureContext() });
+  writeEvent('loading_player', {
+    sources,
+    targetQuality,
+    strictQualitySelection: Boolean(targetQuality),
+    isSecure: isSecureContext(),
+  });
 
   if (!isSecureContext()) {
     console.warn('WebGL360Player: Motion controls usually require a Secure Context (HTTPS). This site is currently using an insecure connection.');
@@ -321,7 +328,7 @@ function loadPlayer(targetQuality?: string) {
 
       if (uiQualitySelect) {
         const currentOptions = Array.from(uiQualitySelect.options).map(o => o.value).join(',');
-        const qualities = Array.from(new Set(sources.map(s => s.quality)));
+        const qualities = Array.from(new Set(DEMO_CONFIG.sources.map(s => s.quality)));
         
         if (currentOptions !== qualities.join(',')) {
           uiQualitySelect.innerHTML = '';
@@ -378,7 +385,15 @@ function loadPlayer(targetQuality?: string) {
       },
     },
     fallback(context) {
-      writeEvent('fallback', { reason: context.reason });
+      if (targetQuality && uiQualitySelect) {
+        uiQualitySelect.value = targetQuality;
+      }
+      writeEvent('fallback', {
+        reason: context.reason,
+        targetQuality,
+        attemptedSources: context.attemptedSources,
+        selectedSource: context.selectedSource,
+      });
       viewer.innerHTML = `<p class="empty-state">The WebGL player could not start: ${context.reason}</p>`;
     },
   });

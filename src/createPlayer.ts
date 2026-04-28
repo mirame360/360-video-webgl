@@ -28,7 +28,7 @@ export function createWebGL360Player(container: HTMLElement, options: WebGL360Pl
   
   // Enforce hardware-safe ceiling on iPhone if not explicitly stricter
   const ceiling = getIPhoneQualityCeiling();
-  if (ceiling && (!config.maxQuality || config.maxQuality === '8k')) {
+  if (ceiling && !config.maxQuality) {
     config.maxQuality = ceiling;
   }
 

@@ -1,5 +1,11 @@
 import * as THREE from 'three';
 import { clamp } from '../config';
+import {
+  composeMotionCameraQuaternion,
+  getCameraQuaternionFromYawPitch,
+  getLookTargetFromYawPitch,
+  getYawPitchFromCameraQuaternion,
+} from './orientation';
 
 export interface SceneRendererOptions {
   yaw: number;
@@ -167,22 +173,14 @@ export class SceneRenderer {
 
   private updateCameraPose(): void {
     if (this.isMotionEnabled) {
-      const manualRotation = new THREE.Quaternion();
-      const eulerManual = new THREE.Euler(
-        THREE.MathUtils.degToRad(this.pitch),
-        THREE.MathUtils.degToRad(this.yaw),
-        0,
-        'YXZ'
-      );
-      manualRotation.setFromEuler(eulerManual);
+      const manualRotation = getCameraQuaternionFromYawPitch(this.yaw, this.pitch);
 
       if (this.sensorOffsetQuaternion) {
-        const relativeSensorRotation = new THREE.Quaternion()
-          .copy(this.sensorOffsetQuaternion)
-          .invert()
-          .multiply(this.deviceQuaternion);
-        
-        this.camera.quaternion.copy(manualRotation).multiply(relativeSensorRotation);
+        this.camera.quaternion.copy(composeMotionCameraQuaternion(
+          manualRotation,
+          this.sensorOffsetQuaternion,
+          this.deviceQuaternion,
+        ));
       } else {
         this.camera.quaternion.copy(manualRotation);
       }
@@ -192,20 +190,13 @@ export class SceneRenderer {
   }
 
   private updateCameraRotation(): void {
-    const phi = THREE.MathUtils.degToRad(90 - this.pitch);
-    const theta = THREE.MathUtils.degToRad(this.yaw);
-    const target = new THREE.Vector3(
-      500 * Math.sin(phi) * Math.cos(theta),
-      500 * Math.cos(phi),
-      500 * Math.sin(phi) * Math.sin(theta),
-    );
-    this.camera.lookAt(target);
+    this.camera.lookAt(getLookTargetFromYawPitch(this.yaw, this.pitch));
   }
 
   private updateYawPitchFromCamera(): void {
-    const euler = new THREE.Euler().setFromQuaternion(this.camera.quaternion, 'YXZ');
-    this.yaw = THREE.MathUtils.radToDeg(euler.y);
-    this.pitch = THREE.MathUtils.radToDeg(euler.x);
+    const pose = getYawPitchFromCameraQuaternion(this.camera.quaternion);
+    this.yaw = pose.yaw;
+    this.pitch = pose.pitch;
   }
 
   private readonly handleOrientation = (event: DeviceOrientationEvent): void => {
