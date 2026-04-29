@@ -255,6 +255,8 @@ describe('createWebGL360Player integration', () => {
     const container = createContainer();
     const onReady = vi.fn();
     const onQualityChange = vi.fn();
+    const pauseSpy = vi.mocked(HTMLMediaElement.prototype.pause);
+    const loadSpy = vi.mocked(HTMLMediaElement.prototype.load);
     const player = createWebGL360Player(container, {
       sources: [fourKSource, mp4Source],
       defaultQuality: '1080p',
@@ -265,12 +267,38 @@ describe('createWebGL360Player integration', () => {
 
     await vi.waitFor(() => expect(onReady).toHaveBeenCalledOnce());
     expect(player.getState().selectedSource?.quality).toBe('1080p');
+    player.setMuted(false);
 
     const result = await player.setQuality('4k');
 
     expect(result).toMatchObject({ ok: true, quality: '4k' });
     expect(player.getState().selectedSource?.quality).toBe('4k');
+    expect(player.getState().isMuted).toBe(false);
+    expect((container.querySelector('video.webgl-360-player__video') as HTMLVideoElement | null)?.muted).toBe(false);
+    expect(pauseSpy).toHaveBeenCalled();
+    expect(loadSpy).toHaveBeenCalledTimes(4);
+    expect(container.querySelectorAll('video.webgl-360-player__video')).toHaveLength(1);
+    expect(rendererMocks.destroy).not.toHaveBeenCalled();
+    expect(rendererMocks.start).toHaveBeenCalledOnce();
     expect(onQualityChange).toHaveBeenCalledWith(expect.objectContaining({ ok: true, quality: '4k' }), expect.any(Object));
+  });
+
+  it('stops and removes all plugin video elements on destroy', async () => {
+    const container = createContainer();
+    const onReady = vi.fn();
+    const pauseSpy = vi.mocked(HTMLMediaElement.prototype.pause);
+    const player = createWebGL360Player(container, {
+      sources: [mp4Source],
+      onReady,
+    });
+
+    await vi.waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+    expect(container.querySelectorAll('video.webgl-360-player__video')).toHaveLength(1);
+
+    player.destroy();
+
+    expect(pauseSpy).toHaveBeenCalled();
+    expect(container.querySelectorAll('video.webgl-360-player__video')).toHaveLength(0);
   });
 });
 

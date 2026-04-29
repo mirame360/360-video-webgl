@@ -59,6 +59,7 @@ class WebGL360PlayerController {
   private renderer?: SceneRenderer;
   private controls?: ControlsHandle;
   private sourceLoaderCleanup?: WebGL360SourceLoaderCleanup;
+  private readonly videoElements = new Set<HTMLVideoElement>();
   private destroyed = false;
   private lastFrameTime = 0;
   private frameCount = 0;
@@ -287,7 +288,7 @@ class WebGL360PlayerController {
     this.loader.setState(`switching to ${quality}`);
 
     try {
-      await this.trySources(candidates, { notifyReady: false, restartRenderer: true });
+      await this.trySources(candidates, { notifyReady: false, restartRenderer: false });
       this.seek(previousTime);
 
       if (!wasPaused) {
@@ -351,6 +352,7 @@ class WebGL360PlayerController {
     this.container.dataset.webgl360Mode = 'destroyed';
     this.controls?.destroy();
     this.renderer?.destroy();
+    this.stopAndDisposeVideoElements();
     void this.cleanupSourceLoader();
     this.loader.destroy();
     this.errorState?.destroy();
@@ -358,13 +360,7 @@ class WebGL360PlayerController {
     if (this.debugInterval) globalThis.clearInterval(this.debugInterval);
     window.removeEventListener('keydown', this.handleKeydown);
 
-    if (this.video) {
-      this.video.pause();
-      this.video.removeAttribute('src');
-      this.video.load();
-      disposeElement(this.video);
-      this.video = undefined;
-    }
+    this.video = undefined;
   }
 
   private setupKeyboardShortcuts(): void {
@@ -476,6 +472,7 @@ class WebGL360PlayerController {
         return;
       }
 
+      const previousSource = this.state.selectedSource;
       this.state.selectedSource = source;
       this.state.diagnostics.selectedSource = source;
       this.state.attemptedSources.push(source);
@@ -502,6 +499,8 @@ class WebGL360PlayerController {
         }
         return;
       } catch (error) {
+        this.state.selectedSource = previousSource;
+        this.state.diagnostics.selectedSource = previousSource;
         lastError = error;
         this.recordDiagnostic({
           type: 'source_error',
@@ -524,6 +523,7 @@ class WebGL360PlayerController {
   private createVideoElement(): HTMLVideoElement {
     const video = document.createElement('video');
     video.className = 'webgl-360-player__video';
+    this.videoElements.add(video);
     
     video.addEventListener('play', () => {
       this.state.isPaused = false;
@@ -624,7 +624,10 @@ class WebGL360PlayerController {
     }
 
     const video = this.video;
+    this.stopAndDisposeVideoElements(video);
+    this.detachCurrentVideoSource(video);
     await this.cleanupSourceLoader();
+    video.muted = this.state.isMuted;
 
     video.ontimeupdate = () => {
       this.state.currentTime = video.currentTime;
@@ -666,6 +669,37 @@ class WebGL360PlayerController {
         if (this.config.debug) console.warn('WebGL360Player: Autoplay blocked or failed:', error);
         // Do not throw here, just let the player be ready in a paused state
       }
+    }
+  }
+
+  private detachCurrentVideoSource(video: HTMLVideoElement): void {
+    this.stopVideoElement(video);
+  }
+
+  private stopVideoElement(video: HTMLVideoElement): void {
+    try {
+      video.pause();
+    } catch {
+      // ignore media teardown failures
+    }
+    video.muted = true;
+    video.removeAttribute('src');
+    video.removeAttribute('type');
+    try {
+      video.load();
+    } catch {
+      // ignore media teardown failures
+    }
+  }
+
+  private stopAndDisposeVideoElements(except?: HTMLVideoElement): void {
+    for (const video of Array.from(this.videoElements)) {
+      if (video === except) {
+        continue;
+      }
+      this.stopVideoElement(video);
+      disposeElement(video);
+      this.videoElements.delete(video);
     }
   }
 
@@ -870,15 +904,11 @@ class WebGL360PlayerController {
     this.controls = undefined;
     this.renderer?.destroy();
     this.renderer = undefined;
+
+    this.stopAndDisposeVideoElements();
     await this.cleanupSourceLoader();
 
-    if (this.video) {
-      this.video.pause();
-      this.video.removeAttribute('src');
-      this.video.load();
-      disposeElement(this.video);
-      this.video = undefined;
-    }
+    this.video = undefined;
   }
 
   private async cleanupSourceLoader(): Promise<void> {
