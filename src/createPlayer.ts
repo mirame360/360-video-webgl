@@ -1,4 +1,5 @@
 import { track } from './analytics';
+import { DEFAULT_COLOR_FILTERS, normalizeColorFilters } from './colorFilters';
 import {
   detectDeviceCapabilities,
   getIPhoneQualityCeiling,
@@ -16,21 +17,30 @@ import { selectInitialSource } from './sourceSelection';
 import type {
   NormalizedWebGL360PlayerOptions,
   WebGL360DiagnosticEvent,
+  WebGL360ColorFilters,
+  WebGL360EventMap,
   WebGL360FallbackContext,
   WebGL360Player,
   WebGL360PlayerOptions,
   WebGL360PlayerState,
+  WebGL360Plugin,
+  WebGL360PluginCleanup,
   WebGL360Quality,
   WebGL360QualitySwitchResult,
   WebGL360SequenceStage,
   WebGL360Source,
   WebGL360SourceLoaderCleanup,
   WebGL360SourceLoaderResult,
+  WebGL360StereoMode,
 } from './types';
 
 interface PermissionedDeviceOrientationEventConstructor {
   requestPermission?: () => Promise<PermissionState>;
 }
+
+type EventListenerMap = {
+  [Name in keyof WebGL360EventMap]?: Set<(payload: unknown) => void>;
+};
 
 export function createWebGL360Player(container: HTMLElement, options: WebGL360PlayerOptions): WebGL360Player {
   if (!container) {
@@ -60,6 +70,16 @@ class WebGL360PlayerController {
   private controls?: ControlsHandle;
   private sourceLoaderCleanup?: WebGL360SourceLoaderCleanup;
   private readonly videoElements = new Set<HTMLVideoElement>();
+  private readonly listeners: EventListenerMap = {};
+  private readonly pluginCleanups: WebGL360PluginCleanup[] = [];
+  private readonly installedPluginIds = new Set<string>();
+  private readonly publicApi: WebGL360Player;
+  private colorFilters = { ...DEFAULT_COLOR_FILTERS };
+  private stereoMode: Required<WebGL360StereoMode> = {
+    enabled: false,
+    eyeYawOffset: 1.5,
+  };
+  private pluginControlsRoot?: HTMLDivElement;
   private destroyed = false;
   private lastFrameTime = 0;
   private frameCount = 0;
@@ -84,6 +104,7 @@ class WebGL360PlayerController {
       isPaused: true,
       isLooping: config.loop,
       isDebug: config.debug,
+      isStereoEnabled: false,
       availableQualities: [],
       sourceSupport: [],
       attemptedSources: [],
@@ -95,6 +116,7 @@ class WebGL360PlayerController {
         events: [],
       },
     };
+    this.publicApi = this.createPublicApi();
     this.loader = createLoader(container);
     this.container.dataset.webgl360Mode = 'initializing';
 
@@ -108,8 +130,14 @@ class WebGL360PlayerController {
   }
 
   getPublicApi(): WebGL360Player {
+    return this.publicApi;
+  }
+
+  private createPublicApi(): WebGL360Player {
     return {
       destroy: () => this.destroy(),
+      on: (event, handler) => this.on(event, handler),
+      off: (event, handler) => this.off(event, handler),
       play: () => this.play(),
       pause: () => this.pause(),
       stop: () => this.stop(),
@@ -128,6 +156,178 @@ class WebGL360PlayerController {
 
   start(): void {
     void this.initialize();
+  }
+
+  private on<Name extends keyof WebGL360EventMap>(
+    event: Name,
+    handler: (payload: WebGL360EventMap[Name]) => void,
+  ): () => void {
+    const listeners = (this.listeners[event] ??= new Set());
+    listeners.add(handler as (payload: unknown) => void);
+    return () => this.off(event, handler);
+  }
+
+  private off<Name extends keyof WebGL360EventMap>(
+    event: Name,
+    handler: (payload: WebGL360EventMap[Name]) => void,
+  ): void {
+    this.listeners[event]?.delete(handler as (payload: unknown) => void);
+  }
+
+  private emit<Name extends keyof WebGL360EventMap>(event: Name, payload: WebGL360EventMap[Name]): void {
+    const listeners = this.listeners[event];
+    if (!listeners) {
+      return;
+    }
+
+    for (const listener of Array.from(listeners)) {
+      try {
+        listener(payload);
+      } catch (error) {
+        if (event !== 'diagnostic') {
+          this.recordDiagnostic({
+            type: 'plugin_error',
+            message: `Event listener for "${event}" failed`,
+            error: getErrorMessage(error),
+          });
+        } else if (this.config.debug) {
+          console.warn('WebGL360Player: diagnostic listener failed:', error);
+        }
+      }
+    }
+  }
+
+  private async installPlugins(): Promise<void> {
+    for (const plugin of this.config.plugins) {
+      await this.installPlugin(plugin);
+    }
+
+    const missingRequired = this.config.requiredPlugins.filter((pluginId) => !this.installedPluginIds.has(pluginId));
+    if (missingRequired.length > 0) {
+      throw new Error(`Required plugin(s) were not installed: ${missingRequired.join(', ')}`);
+    }
+  }
+
+  private async installPlugin(plugin: WebGL360Plugin): Promise<void> {
+    const pluginId = getPluginId(plugin);
+    const install = typeof plugin === 'function' ? plugin : plugin.install;
+    const required = pluginId ? this.config.requiredPlugins.includes(pluginId) : false;
+
+    try {
+      const cleanup = await install({
+        player: this.publicApi,
+        container: this.container,
+        getVideo: () => this.video,
+        getState: () => this.getState(),
+        on: this.publicApi.on,
+        off: this.publicApi.off,
+        emitDiagnostic: (event) => this.recordDiagnostic(event),
+        registerCleanup: (cleanupFn) => this.registerPluginCleanup(cleanupFn),
+        mountControl: (element) => this.mountPluginControl(element),
+        setColorFilters: (filters) => this.setColorFilters(filters),
+        getColorFilters: () => this.getColorFilters(),
+        setStereoMode: (mode) => this.setStereoMode(mode),
+        getStereoMode: () => this.getStereoMode(),
+      });
+
+      if (cleanup) {
+        this.registerPluginCleanup(cleanup);
+      }
+      if (pluginId) {
+        this.installedPluginIds.add(pluginId);
+      }
+    } catch (error) {
+      this.recordDiagnostic({
+        type: 'plugin_error',
+        message: pluginId ? `Plugin "${pluginId}" failed to install` : 'Plugin failed to install',
+        reason: required ? 'required_plugin_failed' : 'optional_plugin_failed',
+        error: getErrorMessage(error),
+      });
+
+      if (required) {
+        throw error;
+      }
+    }
+  }
+
+  private registerPluginCleanup(cleanup: WebGL360PluginCleanup): void {
+    this.pluginCleanups.push(cleanup);
+  }
+
+  private setColorFilters(filters: WebGL360ColorFilters): void {
+    this.colorFilters = normalizeColorFilters(filters);
+    this.renderer?.setColorFilters(this.colorFilters);
+  }
+
+  private getColorFilters(): Required<WebGL360ColorFilters> {
+    return { ...this.colorFilters };
+  }
+
+  private setStereoMode(mode: WebGL360StereoMode): void {
+    this.stereoMode = {
+      enabled: mode.enabled,
+      eyeYawOffset: clamp(mode.eyeYawOffset ?? this.stereoMode.eyeYawOffset, 0, 10),
+    };
+    this.state.isStereoEnabled = this.stereoMode.enabled;
+    this.container.dataset.webgl360Stereo = this.stereoMode.enabled ? 'true' : 'false';
+    this.renderer?.setStereoMode(this.stereoMode);
+  }
+
+  private getStereoMode(): Required<WebGL360StereoMode> {
+    return { ...this.stereoMode };
+  }
+
+  private mountPluginControl(element: HTMLElement): WebGL360PluginCleanup {
+    const root = this.getPluginControlsRoot();
+    root.appendChild(element);
+
+    return () => {
+      element.remove();
+      if (this.pluginControlsRoot && this.pluginControlsRoot.childElementCount === 0) {
+        this.pluginControlsRoot.remove();
+        this.pluginControlsRoot = undefined;
+      }
+    };
+  }
+
+  private getPluginControlsRoot(): HTMLDivElement {
+    if (this.pluginControlsRoot) {
+      return this.pluginControlsRoot;
+    }
+
+    const root = document.createElement('div');
+    root.className = 'webgl-360-plugin-controls';
+    root.style.position = 'absolute';
+    root.style.top = '16px';
+    root.style.left = '50%';
+    root.style.transform = 'translateX(-50%)';
+    root.style.zIndex = '140';
+    root.style.display = 'flex';
+    root.style.alignItems = 'center';
+    root.style.justifyContent = 'center';
+    root.style.gap = '8px';
+    root.style.pointerEvents = 'auto';
+    root.style.maxWidth = 'calc(100% - 32px)';
+
+    this.container.appendChild(root);
+    this.pluginControlsRoot = root;
+    return root;
+  }
+
+  private async cleanupPlugins(): Promise<void> {
+    const cleanups = this.pluginCleanups.splice(0).reverse();
+    for (const cleanup of cleanups) {
+      try {
+        await cleanup();
+      } catch (error) {
+        this.recordDiagnostic({
+          type: 'plugin_error',
+          message: 'Plugin cleanup failed',
+          error: getErrorMessage(error),
+        });
+      }
+    }
+    this.installedPluginIds.clear();
   }
 
   async play(): Promise<void> {
@@ -171,9 +371,16 @@ class WebGL360PlayerController {
 
   seek(time: number): void {
     if (this.video) {
+      const previousTime = this.video.currentTime;
       this.video.currentTime = time;
       // Force a state sync
       this.state.currentTime = time;
+      this.emit('seek', {
+        currentTime: time,
+        previousTime,
+        duration: this.video.duration,
+        state: this.getState(),
+      });
     }
   }
 
@@ -241,22 +448,26 @@ class WebGL360PlayerController {
 
     this.state.isMotionEnabled = enabled;
     this.renderer?.setMotionEnabled(enabled);
+    this.emit('motionchange', { enabled, state: this.getState() });
     return enabled;
   }
 
   setYaw(yaw: number): void {
     this.state.yaw = yaw;
     this.renderer?.setPose({ yaw: this.state.yaw, pitch: this.state.pitch, fov: this.state.fov });
+    this.emitViewChange();
   }
 
   setPitch(pitch: number): void {
     this.state.pitch = clamp(pitch, -89, 89);
     this.renderer?.setPose({ yaw: this.state.yaw, pitch: this.state.pitch, fov: this.state.fov });
+    this.emitViewChange();
   }
 
   setFov(fov: number): void {
     this.state.fov = clamp(fov, this.config.minFov, this.config.maxFov);
     this.renderer?.setPose({ yaw: this.state.yaw, pitch: this.state.pitch, fov: this.state.fov });
+    this.emitViewChange();
   }
 
   async setQuality(quality: WebGL360Quality): Promise<WebGL360QualitySwitchResult> {
@@ -350,6 +561,8 @@ class WebGL360PlayerController {
     this.destroyed = true;
     this.state.mode = 'destroyed';
     this.container.dataset.webgl360Mode = 'destroyed';
+    this.emit('destroy', this.getState());
+    void this.cleanupPlugins();
     this.controls?.destroy();
     this.renderer?.destroy();
     this.stopAndDisposeVideoElements();
@@ -357,6 +570,7 @@ class WebGL360PlayerController {
     this.loader.destroy();
     this.errorState?.destroy();
     this.debugOverlay?.destroy();
+    this.pluginControlsRoot?.remove();
     if (this.debugInterval) globalThis.clearInterval(this.debugInterval);
     window.removeEventListener('keydown', this.handleKeydown);
 
@@ -418,6 +632,7 @@ class WebGL360PlayerController {
     try {
       this.setMode('loading');
       this.loader.setState('preparing player');
+      await this.installPlugins();
       track(this.config.analytics, 'webgl_360_player_attempted', {
         defaultQuality: this.config.defaultQuality,
         maxQuality: this.config.maxQuality,
@@ -476,6 +691,7 @@ class WebGL360PlayerController {
       this.state.selectedSource = source;
       this.state.diagnostics.selectedSource = source;
       this.state.attemptedSources.push(source);
+      this.emit('sourcechange', { source, previousSource, state: this.getState() });
       this.loader.setState(`loading ${source.quality} ${source.type.toUpperCase()}`);
 
       try {
@@ -495,7 +711,7 @@ class WebGL360PlayerController {
           stage: this.state.stage,
         });
         if (notifyReady && this.state.stage === 'main') {
-          this.config.onReady?.(this.getState());
+          this.notifyReady();
         }
         return;
       } catch (error) {
@@ -528,12 +744,14 @@ class WebGL360PlayerController {
     video.addEventListener('play', () => {
       this.state.isPaused = false;
       if (this.config.debug) console.info('Video: play');
+      this.emit('play', this.getState());
       this.config.onPlay?.();
     });
     
     video.addEventListener('pause', () => {
       this.state.isPaused = true;
       if (this.config.debug) console.info('Video: pause');
+      this.emit('pause', this.getState());
       this.config.onPause?.();
     });
 
@@ -554,6 +772,7 @@ class WebGL360PlayerController {
 
     video.addEventListener('ended', () => {
       if (this.config.debug) console.info('Video: ended', { stage: this.state.stage });
+      this.emit('ended', this.getState());
       void this.handleEnded();
     });
 
@@ -631,6 +850,11 @@ class WebGL360PlayerController {
 
     video.ontimeupdate = () => {
       this.state.currentTime = video.currentTime;
+      this.emit('timeupdate', {
+        currentTime: video.currentTime,
+        duration: video.duration,
+        state: this.getState(),
+      });
       this.config.onTimeUpdate?.(video.currentTime, video.duration);
     };
 
@@ -721,6 +945,7 @@ class WebGL360PlayerController {
       debug: this.config.debug,
       onContextLost: () => {
         this.state.diagnostics.contextLostCount++;
+        this.emit('contextlost', { source: this.state.selectedSource, state: this.getState() });
         this.recordDiagnostic({
           type: 'context_lost',
           message: 'WebGL context lost',
@@ -732,6 +957,8 @@ class WebGL360PlayerController {
         this.frameCount++;
       }
     });
+    this.renderer.setColorFilters(this.colorFilters);
+    this.renderer.setStereoMode(this.stereoMode);
     this.renderer.start();
 
     if (this.config.controls) {
@@ -798,6 +1025,21 @@ class WebGL360PlayerController {
       : 0;
   }
 
+  private emitViewChange(): void {
+    this.emit('viewchange', {
+      yaw: this.state.yaw,
+      pitch: this.state.pitch,
+      fov: this.state.fov,
+      state: this.getState(),
+    });
+  }
+
+  private notifyReady(): void {
+    const state = this.getState();
+    this.emit('ready', state);
+    this.config.onReady?.(state);
+  }
+
   private recordDiagnostic(input: Omit<WebGL360DiagnosticEvent, 'at'>): void {
     const event: WebGL360DiagnosticEvent = {
       ...input,
@@ -815,7 +1057,9 @@ class WebGL360PlayerController {
       ...this.state.diagnostics.events.slice(-19),
       event,
     ];
-    this.config.onDiagnostic?.(event, this.getState());
+    const state = this.getState();
+    this.emit('diagnostic', { event, state });
+    this.config.onDiagnostic?.(event, state);
   }
 
   private finishQualityChange(result: WebGL360QualitySwitchResult): WebGL360QualitySwitchResult {
@@ -826,7 +1070,9 @@ class WebGL360PlayerController {
       reason: result.reason,
       error: result.error ? getErrorMessage(result.error) : undefined,
     });
-    this.config.onQualityChange?.(result, this.getState());
+    const state = this.getState();
+    this.emit('qualitychange', { result, state });
+    this.config.onQualityChange?.(result, state);
     track(this.config.analytics, 'webgl_360_player_quality_change', {
       ok: result.ok,
       quality: result.quality,
@@ -852,7 +1098,9 @@ class WebGL360PlayerController {
     });
     this.setMode('fallback');
     this.loader.setState('fallback in progress');
-    this.config.onError?.(error, this.getState());
+    const errorState = this.getState();
+    this.emit('error', { error, state: errorState });
+    this.config.onError?.(error, errorState);
     track(this.config.analytics, 'webgl_360_player_fallback', {
       reason,
       error: getErrorMessage(error),
@@ -870,6 +1118,7 @@ class WebGL360PlayerController {
     };
 
     this.config.onFallback?.(context);
+    this.emit('fallback', context);
     await this.disposeExperimentalRuntime();
 
     try {
@@ -900,6 +1149,7 @@ class WebGL360PlayerController {
   }
 
   private async disposeExperimentalRuntime(): Promise<void> {
+    await this.cleanupPlugins();
     this.controls?.destroy();
     this.controls = undefined;
     this.renderer?.destroy();
@@ -988,6 +1238,10 @@ function waitForVideoReady(video: HTMLVideoElement): Promise<void> {
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function getPluginId(plugin: WebGL360Plugin): string | undefined {
+  return typeof plugin === 'function' ? undefined : plugin.id;
 }
 
 function getSourceLoaderCleanup(result: WebGL360SourceLoaderResult): WebGL360SourceLoaderCleanup | undefined {

@@ -20,3 +20,8 @@ export {
   getQualityRank,
   selectInitialSource,
 } from './sourceSelection';
+export { colorGradingPlugin, createColorGradingPlugin } from './plugins/colorGrading';
+export { analyticsPlugin, createAnalyticsPlugin } from './plugins/analytics';
+export { createSubtitlesPlugin, subtitlesPlugin } from './plugins/subtitles';
+export { createWatermarkPlugin, watermarkPlugin } from './plugins/watermark';
+export { createStereoPlugin, stereoPlugin } from './plugins/stereo';

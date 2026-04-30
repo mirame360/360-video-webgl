@@ -368,6 +368,70 @@ h1 {
   font-size: 1rem;
 }
 
+.color-panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.section-heading h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+#color-reset {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+#color-reset:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 20px;
+}
+
+.filter-control {
+  display: grid;
+  gap: 8px;
+}
+
+.filter-control span {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.filter-control output {
+  color: var(--text-main);
+  font-variant-numeric: tabular-nums;
+}
+
+.filter-control input {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
 pre {
   background: #000;
   border-radius: 8px;
@@ -421,6 +485,10 @@ pre {
   .ui-bottom-bar {
     padding: 24px 12px calc(12px + env(safe-area-inset-bottom));
     gap: 8px;
+  }
+
+  .color-grid {
+    grid-template-columns: 1fr;
   }
 }
 

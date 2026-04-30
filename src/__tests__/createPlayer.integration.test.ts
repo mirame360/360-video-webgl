@@ -1,9 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createWebGL360Player } from '../createPlayer';
-import type { WebGL360Source } from '../types';
+import { createColorGradingPlugin } from '../plugins/colorGrading';
+import type { WebGL360PluginContext, WebGL360Source } from '../types';
 
 const rendererMocks = vi.hoisted(() => ({
   destroy: vi.fn(),
+  setColorFilters: vi.fn(),
+  setStereoMode: vi.fn(),
   setPose: vi.fn(),
   start: vi.fn(),
 }));
@@ -45,6 +48,8 @@ const eightKSource: WebGL360Source = {
 describe('createWebGL360Player integration', () => {
   beforeEach(() => {
     rendererMocks.destroy.mockClear();
+    rendererMocks.setColorFilters.mockClear();
+    rendererMocks.setStereoMode.mockClear();
     rendererMocks.setPose.mockClear();
     rendererMocks.start.mockClear();
     stubMediaElement({
@@ -89,6 +94,15 @@ describe('createWebGL360Player integration', () => {
 
     await vi.waitFor(() => expect(onReady).toHaveBeenCalledOnce());
 
+    const seekHandler = vi.fn();
+    player.on('seek', seekHandler);
+    player.seek(12);
+
+    expect(seekHandler).toHaveBeenCalledWith(expect.objectContaining({
+      currentTime: 12,
+      previousTime: expect.any(Number),
+      state: expect.objectContaining({ currentTime: 12 }),
+    }));
     expect(player.getState().mode).toBe('ready');
     expect(player.getState().selectedSource?.type).toBe('mp4');
     expect(container.dataset.webgl360Mode).toBe('webgl');
@@ -166,6 +180,219 @@ describe('createWebGL360Player integration', () => {
     player.destroy();
 
     expect(cleanup).toHaveBeenCalledOnce();
+  });
+
+  it('installs plugins, emits events, and runs plugin cleanup on destroy', async () => {
+    const container = createContainer();
+    const cleanup = vi.fn();
+    const readyHandler = vi.fn();
+    const qualityHandler = vi.fn();
+    const install = vi.fn((context: WebGL360PluginContext) => {
+      context.on('ready', readyHandler);
+      context.on('qualitychange', qualityHandler);
+      context.registerCleanup(cleanup);
+      const button = document.createElement('button');
+      button.textContent = 'Plugin';
+      context.registerCleanup(context.mountControl(button));
+      context.setStereoMode({ enabled: true, eyeYawOffset: 2 });
+    });
+    const onReady = vi.fn();
+    const player = createWebGL360Player(container, {
+      sources: [fourKSource, mp4Source],
+      defaultQuality: '1080p',
+      sourcePreference: ['mp4', 'hls'],
+      plugins: [{ id: 'test-plugin', install }],
+      requiredPlugins: ['test-plugin'],
+      onReady,
+    });
+
+    await vi.waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+
+    expect(install).toHaveBeenCalledWith(expect.objectContaining({
+      player,
+      container,
+      getVideo: expect.any(Function),
+      getState: expect.any(Function),
+      mountControl: expect.any(Function),
+      registerCleanup: expect.any(Function),
+    }));
+    expect(container.querySelector('.webgl-360-plugin-controls')?.textContent).toBe('Plugin');
+    expect(rendererMocks.setStereoMode).toHaveBeenCalledWith({
+      enabled: true,
+      eyeYawOffset: 2,
+    });
+    expect(player.getState().isStereoEnabled).toBe(true);
+    expect(readyHandler).toHaveBeenCalledWith(expect.objectContaining({ mode: 'ready' }));
+
+    const result = await player.setQuality('4k');
+
+    expect(result.ok).toBe(true);
+    expect(qualityHandler).toHaveBeenCalledWith(expect.objectContaining({
+      result: expect.objectContaining({ ok: true, quality: '4k' }),
+      state: expect.objectContaining({ mode: 'ready' }),
+    }));
+
+    player.destroy();
+
+    await vi.waitFor(() => expect(cleanup).toHaveBeenCalledOnce());
+    expect(container.querySelector('.webgl-360-plugin-controls')).toBeNull();
+  });
+
+  it('supports event unsubscribe and isolates listener failures', async () => {
+    const container = createContainer();
+    const onReady = vi.fn();
+    const persistentReadyHandler = vi.fn();
+    const removedReadyHandler = vi.fn();
+    const throwingReadyHandler = vi.fn(() => {
+      throw new Error('listener failed');
+    });
+    const onDiagnostic = vi.fn();
+    const install = vi.fn((context: WebGL360PluginContext) => {
+      context.on('ready', persistentReadyHandler);
+      const unsubscribe = context.on('ready', removedReadyHandler);
+      unsubscribe();
+      context.on('ready', throwingReadyHandler);
+    });
+    const player = createWebGL360Player(container, {
+      sources: [mp4Source],
+      plugins: [install],
+      onReady,
+      onDiagnostic,
+    });
+
+    await vi.waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+
+    expect(player.getState().mode).toBe('ready');
+    expect(persistentReadyHandler).toHaveBeenCalledOnce();
+    expect(removedReadyHandler).not.toHaveBeenCalled();
+    expect(throwingReadyHandler).toHaveBeenCalledOnce();
+    expect(onDiagnostic).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'plugin_error',
+      message: 'Event listener for "ready" failed',
+      error: 'listener failed',
+    }), expect.any(Object));
+  });
+
+  it('runs returned and registered plugin cleanups once in reverse order', async () => {
+    const container = createContainer();
+    const cleanupCalls: string[] = [];
+    const cleanupA = vi.fn(() => {
+      cleanupCalls.push('registered-a');
+    });
+    const cleanupB = vi.fn(() => {
+      cleanupCalls.push('returned-b');
+    });
+    const onReady = vi.fn();
+    const player = createWebGL360Player(container, {
+      sources: [mp4Source],
+      plugins: [
+        (context) => {
+          context.registerCleanup(cleanupA);
+        },
+        () => cleanupB,
+      ],
+      onReady,
+    });
+
+    await vi.waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+
+    player.destroy();
+    player.destroy();
+
+    await vi.waitFor(() => expect(cleanupA).toHaveBeenCalledOnce());
+    expect(cleanupB).toHaveBeenCalledOnce();
+    expect(cleanupCalls).toEqual(['returned-b', 'registered-a']);
+  });
+
+  it('applies color grading plugin filters when the renderer starts and updates later', async () => {
+    const container = createContainer();
+    const onReady = vi.fn();
+    const colorGrading = createColorGradingPlugin({
+      filters: {
+        exposure: 0.25,
+        contrast: 1.2,
+        saturation: 1.1,
+      },
+    });
+    const player = createWebGL360Player(container, {
+      sources: [mp4Source],
+      plugins: [colorGrading],
+      onReady,
+    });
+
+    await vi.waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+
+    expect(rendererMocks.setColorFilters).toHaveBeenCalledWith(expect.objectContaining({
+      exposure: 0.25,
+      contrast: 1.2,
+      saturation: 1.1,
+    }));
+
+    colorGrading.setFilters({ brightness: 0.1, vignette: 0.3 });
+
+    expect(colorGrading.getFilters()).toMatchObject({
+      exposure: 0.25,
+      brightness: 0.1,
+      contrast: 1.2,
+      saturation: 1.1,
+      vignette: 0.3,
+    });
+    expect(rendererMocks.setColorFilters).toHaveBeenLastCalledWith(expect.objectContaining({
+      brightness: 0.1,
+      vignette: 0.3,
+    }));
+
+    player.destroy();
+  });
+
+  it('continues playback when an optional plugin fails to install', async () => {
+    const container = createContainer();
+    const onReady = vi.fn();
+    const onDiagnostic = vi.fn();
+    const player = createWebGL360Player(container, {
+      sources: [mp4Source],
+      plugins: [() => {
+        throw new Error('optional plugin failed');
+      }],
+      onReady,
+      onDiagnostic,
+    });
+
+    await vi.waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+
+    expect(player.getState().mode).toBe('ready');
+    expect(onDiagnostic).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'plugin_error',
+      reason: 'optional_plugin_failed',
+      error: 'optional plugin failed',
+    }), expect.any(Object));
+  });
+
+  it('falls back when a required plugin fails to install', async () => {
+    const container = createContainer();
+    const fallback = vi.fn();
+    const player = createWebGL360Player(container, {
+      sources: [mp4Source],
+      plugins: [{
+        id: 'required-plugin',
+        install: () => {
+          throw new Error('required plugin failed');
+        },
+      }],
+      requiredPlugins: ['required-plugin'],
+      fallback,
+    });
+
+    await vi.waitFor(() => expect(fallback).toHaveBeenCalledOnce());
+
+    expect(player.getState().mode).toBe('fallback');
+    expect(player.getState().diagnostics.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'plugin_error',
+        reason: 'required_plugin_failed',
+        error: 'required plugin failed',
+      }),
+    ]));
   });
 
   it('shows a default error state when no fallback callback is provided', async () => {

@@ -114,6 +114,66 @@ player.destroy();
 
 `getState()` returns the active source, supported qualities, source support reasons, detected device capabilities, playback counters, and recent diagnostic events.
 
+## Optional Plugins
+
+Plugins are installed through the `plugins` option and can subscribe to runtime events without increasing the core player surface.
+
+```ts
+import {
+  createAnalyticsPlugin,
+  createStereoPlugin,
+  createSubtitlesPlugin,
+  createWatermarkPlugin,
+  createWebGL360Player,
+} from 'webgl-360-player';
+
+const analytics = createAnalyticsPlugin({
+  track(event, payload) {
+    console.log(event, payload);
+  },
+});
+const subtitles = createSubtitlesPlugin({
+  tracks: [
+    { id: 'en', src: '/subtitles-en.vtt', label: 'English', srclang: 'en', default: true },
+  ],
+  controls: true,
+});
+const watermark = createWatermarkPlugin({
+  text: 'Example Brand',
+  href: 'https://example.com',
+  poweredBy: true,
+  position: 'top-left',
+});
+const stereo = createStereoPlugin({
+  controls: true,
+});
+
+const player = createWebGL360Player(container, {
+  sources: [{ src: 'video_4k.mp4', type: 'mp4', quality: '4k' }],
+  plugins: [analytics, subtitles, watermark, stereo],
+});
+```
+
+The analytics plugin emits:
+
+- `webgl_360_ready`
+- `webgl_360_play`
+- `webgl_360_pause`
+- `webgl_360_seek`
+- `webgl_360_quality_change`
+- `webgl_360_quality_fallback`
+- `webgl_360_motion_change`
+- `webgl_360_view_duration`
+- `webgl_360_heatmap_sample`
+- `webgl_360_source_error`
+- `webgl_360_fallback`
+
+The subtitles plugin attaches WebVTT tracks to the active video element, renders active cues into a player overlay, and can mount a `CC` control button through the shared plugin controls slot. The custom overlay is required because the media element itself is hidden while WebGL renders the 360 texture.
+
+The watermark plugin renders a configurable brand badge with optional click URL and powered-by text.
+
+The stereo plugin mounts a `VR` control and asks the renderer to draw a Cardboard-style left/right split view. Full WebXR support can be layered into this plugin later without changing the normal playback path.
+
 ## Configuration Options
 
 | Option | Type | Description |
@@ -129,6 +189,8 @@ player.destroy();
 | `motionControls` | `boolean` | Enables/Disables gyroscope support. |
 | `sourceLoader` | `function` | Optional custom loader for HLS or application-specific source handling. |
 | `analytics` | `object` | Optional `{ track(event, payload) }` adapter for host analytics. |
+| `plugins` | `array` | Optional plugin functions or plugin objects installed before playback starts. |
+| `requiredPlugins` | `array` | Plugin ids that must install successfully or the player falls back. |
 | `onClick` | `function` | Callback for user clicks on the canvas. |
 | `onReady` | `function` | Callback when player is initialized. |
 | `onPlay` | `function` | Callback when playback starts. |
@@ -160,6 +222,8 @@ Useful analytics events:
 - `webgl_360_player_source_error`
 - `webgl_360_player_quality_change`
 - `webgl_360_player_fallback`
+
+For richer host analytics, use `createAnalyticsPlugin()` to capture playback events, seek events, motion toggles, view duration, heatmap samples, source errors, and quality fallback outcomes.
 
 ## HLS
 

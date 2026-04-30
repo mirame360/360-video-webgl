@@ -1,5 +1,7 @@
 import * as THREE from 'three';
+import { normalizeColorFilters } from '../colorFilters';
 import { clamp } from '../config';
+import type { WebGL360ColorFilters, WebGL360StereoMode } from '../types';
 import {
   composeMotionCameraQuaternion,
   getCameraQuaternionFromYawPitch,
@@ -23,7 +25,7 @@ export class SceneRenderer {
   private readonly scene = new THREE.Scene();
   private readonly camera: THREE.PerspectiveCamera;
   private readonly texture: THREE.VideoTexture;
-  private readonly material: THREE.MeshBasicMaterial;
+  private readonly material: THREE.ShaderMaterial;
   private readonly geometry: THREE.SphereGeometry;
   private readonly mesh: THREE.Mesh;
   private readonly resizeObserver?: ResizeObserver;
@@ -35,6 +37,10 @@ export class SceneRenderer {
   private screenOrientation = 0;
   private deviceQuaternion = new THREE.Quaternion();
   private sensorOffsetQuaternion?: THREE.Quaternion;
+  private stereoMode: Required<WebGL360StereoMode> = {
+    enabled: false,
+    eyeYawOffset: 1.5,
+  };
   private readonly alignQuaternion = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)); // -90 deg rotation around X
   private destroyed = false;
 
@@ -81,10 +87,7 @@ export class SceneRenderer {
 
     this.geometry = new THREE.SphereGeometry(500, 60, 40);
     this.geometry.scale(-1, 1, 1);
-    this.material = new THREE.MeshBasicMaterial({ 
-      map: this.texture,
-      side: THREE.DoubleSide
-    });
+    this.material = createColorGradingMaterial(this.texture);
     this.mesh = new THREE.Mesh(this.geometry, this.material);
     this.scene.add(this.mesh);
 
@@ -123,6 +126,25 @@ export class SceneRenderer {
       this.sensorOffsetQuaternion = undefined;
     }
     this.isMotionEnabled = enabled;
+  }
+
+  setColorFilters(filters: WebGL360ColorFilters): void {
+    const normalized = normalizeColorFilters(filters);
+    this.material.uniforms.uExposure.value = normalized.exposure;
+    this.material.uniforms.uBrightness.value = normalized.brightness;
+    this.material.uniforms.uContrast.value = normalized.contrast;
+    this.material.uniforms.uSaturation.value = normalized.saturation;
+    this.material.uniforms.uTemperature.value = normalized.temperature;
+    this.material.uniforms.uTint.value = normalized.tint;
+    this.material.uniforms.uVignette.value = normalized.vignette;
+  }
+
+  setStereoMode(mode: WebGL360StereoMode): void {
+    this.stereoMode = {
+      enabled: mode.enabled,
+      eyeYawOffset: clamp(mode.eyeYawOffset ?? this.stereoMode.eyeYawOffset, 0, 10),
+    };
+    this.resize();
   }
 
   destroy(): void {
@@ -165,13 +187,41 @@ export class SceneRenderer {
     }
 
     this.texture.needsUpdate = true;
-    this.updateCameraPose();
-    this.renderer.render(this.scene, this.camera);
+    if (this.stereoMode.enabled) {
+      this.renderStereo();
+    } else {
+      this.renderer.setScissorTest(false);
+      this.updateCameraPose();
+      this.renderer.render(this.scene, this.camera);
+    }
     this.options.onFrame?.();
     this.animationFrame = requestAnimationFrame(this.render);
   };
 
-  private updateCameraPose(): void {
+  private renderStereo(): void {
+    const size = this.renderer.getSize(new THREE.Vector2());
+    const width = Math.max(Math.floor(size.x), 1);
+    const height = Math.max(Math.floor(size.y), 1);
+    const halfWidth = Math.max(Math.floor(width / 2), 1);
+
+    this.renderer.setScissorTest(true);
+    this.renderer.clear();
+
+    this.renderer.setViewport(0, 0, halfWidth, height);
+    this.renderer.setScissor(0, 0, halfWidth, height);
+    this.updateCameraPose(-this.stereoMode.eyeYawOffset);
+    this.renderer.render(this.scene, this.camera);
+
+    this.renderer.setViewport(halfWidth, 0, width - halfWidth, height);
+    this.renderer.setScissor(halfWidth, 0, width - halfWidth, height);
+    this.updateCameraPose(this.stereoMode.eyeYawOffset);
+    this.renderer.render(this.scene, this.camera);
+
+    this.renderer.setScissorTest(false);
+    this.renderer.setViewport(0, 0, width, height);
+  }
+
+  private updateCameraPose(yawOffset = 0): void {
     if (this.isMotionEnabled) {
       const manualRotation = getCameraQuaternionFromYawPitch(this.yaw, this.pitch);
 
@@ -184,13 +234,20 @@ export class SceneRenderer {
       } else {
         this.camera.quaternion.copy(manualRotation);
       }
+      if (yawOffset !== 0) {
+        const eyeOffset = new THREE.Quaternion().setFromAxisAngle(
+          new THREE.Vector3(0, 1, 0),
+          THREE.MathUtils.degToRad(yawOffset),
+        );
+        this.camera.quaternion.multiply(eyeOffset);
+      }
     } else {
-      this.updateCameraRotation();
+      this.updateCameraRotation(yawOffset);
     }
   }
 
-  private updateCameraRotation(): void {
-    this.camera.lookAt(getLookTargetFromYawPitch(this.yaw, this.pitch));
+  private updateCameraRotation(yawOffset = 0): void {
+    this.camera.lookAt(getLookTargetFromYawPitch(this.yaw + yawOffset, this.pitch));
   }
 
   private updateYawPitchFromCamera(): void {
@@ -235,4 +292,67 @@ export class SceneRenderer {
     event.preventDefault();
     this.options.onContextLost?.();
   };
+}
+
+function createColorGradingMaterial(texture: THREE.VideoTexture): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    side: THREE.DoubleSide,
+    uniforms: {
+      map: { value: texture },
+      uExposure: { value: 0 },
+      uBrightness: { value: 0 },
+      uContrast: { value: 1 },
+      uSaturation: { value: 1 },
+      uTemperature: { value: 0 },
+      uTint: { value: 0 },
+      uVignette: { value: 0 },
+    },
+    vertexShader: `
+      varying vec2 vUv;
+
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D map;
+      uniform float uExposure;
+      uniform float uBrightness;
+      uniform float uContrast;
+      uniform float uSaturation;
+      uniform float uTemperature;
+      uniform float uTint;
+      uniform float uVignette;
+
+      varying vec2 vUv;
+
+      vec3 applySaturation(vec3 color, float saturation) {
+        float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
+        return mix(vec3(luminance), color, saturation);
+      }
+
+      void main() {
+        vec4 texel = texture2D(map, vUv);
+        vec3 color = texel.rgb;
+
+        color *= pow(2.0, uExposure);
+        color += uBrightness;
+        color = (color - 0.5) * uContrast + 0.5;
+        color = applySaturation(color, uSaturation);
+
+        color.r += uTemperature * 0.08;
+        color.b -= uTemperature * 0.08;
+        color.g += uTint * 0.06;
+        color.r -= uTint * 0.03;
+        color.b -= uTint * 0.03;
+
+        float distanceFromCenter = distance(vUv, vec2(0.5));
+        float vignette = smoothstep(0.8, 0.2, distanceFromCenter);
+        color *= mix(1.0, vignette, uVignette);
+
+        gl_FragColor = vec4(clamp(color, 0.0, 1.0), texel.a);
+      }
+    `,
+  });
 }

@@ -1,11 +1,22 @@
 import './styles.css';
 import Hls from 'hls.js';
-import { createWebGL360Player, isSecureContext, type WebGL360Player, type WebGL360Source } from '../src/index';
+import {
+  createAnalyticsPlugin,
+  createColorGradingPlugin,
+  createStereoPlugin,
+  createSubtitlesPlugin,
+  createWatermarkPlugin,
+  createWebGL360Player,
+  isSecureContext,
+  type WebGL360ColorFilters,
+  type WebGL360Player,
+  type WebGL360Source,
+} from '../src/index';
 
 const viewer = document.querySelector<HTMLElement>('#viewer');
 const eventLog = document.querySelector<HTMLPreElement>('#event-log');
 const DEMO_CONFIG = {
-  brandText: 'BY MIRAME360.COM', // Change this to update the badge text
+  brandText: '',
   loop: true,
   sources: [
     {
@@ -36,11 +47,78 @@ const zoomLevelDisplay = document.querySelector<HTMLElement>('#ui-zoom-level');
 const btnMotion = document.querySelector<HTMLButtonElement>('#ui-motion');
 const btnDebug = document.querySelector<HTMLButtonElement>('#ui-debug');
 const btnFullscreen = document.querySelector<HTMLButtonElement>('#ui-fullscreen');
+const btnResetColor = document.querySelector<HTMLButtonElement>('#color-reset');
+const colorFilterInputs = Array.from(document.querySelectorAll<HTMLInputElement>('[data-color-filter]'));
 
 let player: WebGL360Player | undefined;
 let lastStateJson = '';
 let hasStartedPlaying = false;
 let uiHideTimer: number | undefined;
+const colorGrading = createColorGradingPlugin();
+const analytics = createAnalyticsPlugin({
+  track(event, payload) {
+    writeEvent(event, payload);
+  },
+  viewDurationIntervalMs: 5000,
+});
+const subtitles = createSubtitlesPlugin({
+  tracks: [
+    {
+      id: 'en',
+      src: '/subtitles-en.vtt',
+      label: 'English',
+      srclang: 'en',
+      default: true,
+    },
+  ],
+});
+const watermark = createWatermarkPlugin({
+  text: 'MIRAME360.COM',
+  href: 'https://mirame360.com',
+  poweredBy: true,
+  position: 'top-left',
+});
+const stereo = createStereoPlugin({
+  eyeYawOffset: 1.5,
+  requestFullscreen: false,
+});
+
+function formatFilterValue(filter: keyof WebGL360ColorFilters, value: number): string {
+  if (filter === 'contrast' || filter === 'saturation') {
+    return `${value.toFixed(2)}x`;
+  }
+  return value.toFixed(2);
+}
+
+function syncColorControls(): void {
+  const filters = colorGrading.getFilters();
+
+  for (const input of colorFilterInputs) {
+    const filter = input.dataset.colorFilter as keyof WebGL360ColorFilters | undefined;
+    if (!filter) continue;
+
+    const value = filters[filter];
+    input.value = String(value);
+
+    const output = document.querySelector<HTMLElement>(`[data-color-value="${filter}"]`);
+    if (output) {
+      output.textContent = formatFilterValue(filter, value);
+    }
+  }
+}
+
+function handleColorControlInput(input: HTMLInputElement): void {
+  const filter = input.dataset.colorFilter as keyof WebGL360ColorFilters | undefined;
+  if (!filter) return;
+
+  const value = Number(input.value);
+  colorGrading.setFilters({ [filter]: value });
+
+  const output = document.querySelector<HTMLElement>(`[data-color-value="${filter}"]`);
+  if (output) {
+    output.textContent = formatFilterValue(filter, colorGrading.getFilters()[filter]);
+  }
+}
 
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
@@ -205,6 +283,16 @@ const toggleFullscreen = () => {
 
 btnFullscreen?.addEventListener('click', toggleFullscreen);
 
+for (const input of colorFilterInputs) {
+  input.addEventListener('input', () => handleColorControlInput(input));
+}
+
+btnResetColor?.addEventListener('click', () => {
+  colorGrading.reset();
+  syncColorControls();
+  writeEvent('color_grading_reset', colorGrading.getFilters());
+});
+
 // Handle escape key for pseudo-fullscreen
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
@@ -265,6 +353,7 @@ function loadPlayer(targetQuality?: string) {
 
   player = createWebGL360Player(viewer, {
     sources,
+    plugins: [colorGrading, analytics, subtitles, watermark, stereo],
     loop: DEMO_CONFIG.loop,
     preSources: skipIntro ? [] : [
       { src: 'example_720p.mp4', type: 'mp4', quality: '720p' }
@@ -390,11 +479,6 @@ function loadPlayer(targetQuality?: string) {
     onError(error, state) {
       writeEvent('webgl_360_player_error', { error: String(error), state });
     },
-    analytics: {
-      track(eventName, payload) {
-        writeEvent(eventName, payload);
-      },
-    },
     fallback(context) {
       if (targetQuality && uiQualitySelect) {
         uiQualitySelect.value = targetQuality;
@@ -432,6 +516,7 @@ uiQualitySelect?.addEventListener('change', () => {
 });
 
 queueMicrotask(() => {
+  syncColorControls();
   loadPlayer();
 });
 

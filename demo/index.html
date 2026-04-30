@@ -75,6 +75,44 @@
         <h2>Events</h2>
         <pre id="event-log">Waiting for input...</pre>
       </section>
+
+      <section class="color-panel" aria-label="Color grading controls">
+        <div class="section-heading">
+          <h2>Color grading</h2>
+          <button id="color-reset" type="button">Reset</button>
+        </div>
+
+        <div class="color-grid">
+          <label class="filter-control">
+            <span>Exposure <output data-color-value="exposure">0.00</output></span>
+            <input data-color-filter="exposure" type="range" min="-2" max="2" value="0" step="0.01">
+          </label>
+          <label class="filter-control">
+            <span>Brightness <output data-color-value="brightness">0.00</output></span>
+            <input data-color-filter="brightness" type="range" min="-1" max="1" value="0" step="0.01">
+          </label>
+          <label class="filter-control">
+            <span>Contrast <output data-color-value="contrast">1.00x</output></span>
+            <input data-color-filter="contrast" type="range" min="0" max="3" value="1" step="0.01">
+          </label>
+          <label class="filter-control">
+            <span>Saturation <output data-color-value="saturation">1.00x</output></span>
+            <input data-color-filter="saturation" type="range" min="0" max="3" value="1" step="0.01">
+          </label>
+          <label class="filter-control">
+            <span>Temperature <output data-color-value="temperature">0.00</output></span>
+            <input data-color-filter="temperature" type="range" min="-1" max="1" value="0" step="0.01">
+          </label>
+          <label class="filter-control">
+            <span>Tint <output data-color-value="tint">0.00</output></span>
+            <input data-color-filter="tint" type="range" min="-1" max="1" value="0" step="0.01">
+          </label>
+          <label class="filter-control">
+            <span>Vignette <output data-color-value="vignette">0.00</output></span>
+            <input data-color-filter="vignette" type="range" min="0" max="1" value="0" step="0.01">
+          </label>
+        </div>
+      </section>
     </main>
   </body>
 </html>

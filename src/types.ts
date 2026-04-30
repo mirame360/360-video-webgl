@@ -26,6 +26,21 @@ export interface WebGL360DeviceCapabilities {
   userAgent: string;
 }
 
+export interface WebGL360ColorFilters {
+  exposure?: number;
+  brightness?: number;
+  contrast?: number;
+  saturation?: number;
+  temperature?: number;
+  tint?: number;
+  vignette?: number;
+}
+
+export interface WebGL360StereoMode {
+  enabled: boolean;
+  eyeYawOffset?: number;
+}
+
 export interface WebGL360SourceSupport {
   source: WebGL360Source;
   supported: boolean;
@@ -45,6 +60,7 @@ export type WebGL360DiagnosticEventType =
   | 'decode_error'
   | 'context_lost'
   | 'quality_change'
+  | 'plugin_error'
   | 'fallback';
 
 export interface WebGL360DiagnosticEvent {
@@ -102,6 +118,59 @@ export type WebGL360SourceLoader = (
   context: WebGL360SourceLoaderContext,
 ) => WebGL360SourceLoaderResult | Promise<WebGL360SourceLoaderResult>;
 
+export interface WebGL360EventMap {
+  ready: WebGL360PlayerState;
+  play: WebGL360PlayerState;
+  pause: WebGL360PlayerState;
+  ended: WebGL360PlayerState;
+  timeupdate: { currentTime: number; duration: number; state: WebGL360PlayerState };
+  seek: { currentTime: number; previousTime: number; duration: number; state: WebGL360PlayerState };
+  sourcechange: { source: WebGL360Source; previousSource?: WebGL360Source; state: WebGL360PlayerState };
+  qualitychange: { result: WebGL360QualitySwitchResult; state: WebGL360PlayerState };
+  error: { error: unknown; state: WebGL360PlayerState };
+  fallback: WebGL360FallbackContext;
+  diagnostic: { event: WebGL360DiagnosticEvent; state: WebGL360PlayerState };
+  contextlost: { source?: WebGL360Source; state: WebGL360PlayerState };
+  motionchange: { enabled: boolean; state: WebGL360PlayerState };
+  viewchange: { yaw: number; pitch: number; fov: number; state: WebGL360PlayerState };
+  destroy: WebGL360PlayerState;
+}
+
+export type WebGL360EventName = keyof WebGL360EventMap;
+
+export type WebGL360EventHandler<Name extends WebGL360EventName = WebGL360EventName> = (
+  payload: WebGL360EventMap[Name],
+) => void;
+
+export interface WebGL360PluginContext {
+  player: WebGL360Player;
+  container: HTMLElement;
+  getVideo: () => HTMLVideoElement | undefined;
+  getState: () => WebGL360PlayerState;
+  on: WebGL360Player['on'];
+  off: WebGL360Player['off'];
+  emitDiagnostic: (event: Omit<WebGL360DiagnosticEvent, 'at'>) => void;
+  registerCleanup: (cleanup: WebGL360PluginCleanup) => void;
+  mountControl: (element: HTMLElement) => WebGL360PluginCleanup;
+  setColorFilters: (filters: WebGL360ColorFilters) => void;
+  getColorFilters: () => Required<WebGL360ColorFilters>;
+  setStereoMode: (mode: WebGL360StereoMode) => void;
+  getStereoMode: () => Required<WebGL360StereoMode>;
+}
+
+export type WebGL360PluginCleanup = () => void | Promise<void>;
+
+export type WebGL360PluginInstall = (
+  context: WebGL360PluginContext,
+) => void | WebGL360PluginCleanup | Promise<void | WebGL360PluginCleanup>;
+
+export interface WebGL360PluginObject {
+  id: string;
+  install: WebGL360PluginInstall;
+}
+
+export type WebGL360Plugin = WebGL360PluginInstall | WebGL360PluginObject;
+
 export interface WebGL360PlayerOptions {
   sources: WebGL360Source[];
   /** Sources to play before the main video (e.g., intro) */
@@ -133,6 +202,8 @@ export interface WebGL360PlayerOptions {
   analytics?: WebGL360Analytics;
   fallback?: WebGL360Fallback;
   sourceLoader?: WebGL360SourceLoader;
+  plugins?: WebGL360Plugin[];
+  requiredPlugins?: string[];
   onReady?: (state: WebGL360PlayerState) => void;
   onError?: (error: unknown, state: WebGL360PlayerState) => void;
   onFallback?: (context: WebGL360FallbackContext) => void;
@@ -177,6 +248,8 @@ export interface NormalizedWebGL360PlayerOptions extends Required<
   analytics?: WebGL360Analytics;
   fallback?: WebGL360Fallback;
   sourceLoader?: WebGL360SourceLoader;
+  plugins: WebGL360Plugin[];
+  requiredPlugins: string[];
   onReady?: (state: WebGL360PlayerState) => void;
   onError?: (error: unknown, state: WebGL360PlayerState) => void;
   onFallback?: (context: WebGL360FallbackContext) => void;
@@ -207,6 +280,7 @@ export interface WebGL360PlayerState {
   isPaused: boolean;
   isLooping: boolean;
   isDebug: boolean;
+  isStereoEnabled: boolean;
   availableQualities: WebGL360Quality[];
   deviceCapabilities?: WebGL360DeviceCapabilities;
   selectedSource?: WebGL360Source;
@@ -218,6 +292,14 @@ export interface WebGL360PlayerState {
 
 export interface WebGL360Player {
   destroy: () => void;
+  on: <Name extends WebGL360EventName>(
+    event: Name,
+    handler: (payload: WebGL360EventMap[Name]) => void,
+  ) => () => void;
+  off: <Name extends WebGL360EventName>(
+    event: Name,
+    handler: (payload: WebGL360EventMap[Name]) => void,
+  ) => void;
   play: () => Promise<void>;
   pause: () => void;
   stop: () => void;

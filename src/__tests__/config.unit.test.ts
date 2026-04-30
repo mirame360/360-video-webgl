@@ -20,6 +20,20 @@ describe('normalizePlayerOptions', () => {
     expect(options.controls).toBe(true);
     expect(options.motionControls).toBe(true);
     expect(options.crossOrigin).toBe('anonymous');
+    expect(options.plugins).toEqual([]);
+    expect(options.requiredPlugins).toEqual([]);
+  });
+
+  it('preserves plugin configuration for the core player installer', () => {
+    const plugin = () => undefined;
+    const options = normalizePlayerOptions({
+      sources,
+      plugins: [plugin],
+      requiredPlugins: ['captions'],
+    });
+
+    expect(options.plugins).toEqual([plugin]);
+    expect(options.requiredPlugins).toEqual(['captions']);
   });
 
   it('rejects empty source lists', () => {

@@ -8,6 +8,8 @@ import type { WebGL360Player as PlayerInstance } from '../types';
 describe('ReactWebGL360Player', () => {
   const mockPlayer: PlayerInstance = {
     destroy: vi.fn(),
+    on: vi.fn(() => () => undefined),
+    off: vi.fn(),
     play: vi.fn().mockResolvedValue(undefined),
     pause: vi.fn(),
     stop: vi.fn(),
@@ -70,6 +72,21 @@ describe('ReactWebGL360Player', () => {
     expect(ref.current).not.toBeNull();
     ref.current?.play();
     expect(mockPlayer.play).toHaveBeenCalledOnce();
+  });
+
+  it('forwards event subscription methods through the imperative ref', () => {
+    const ref = createRef<PlayerInstance>();
+    const handler = vi.fn();
+    render(
+      <ReactWebGL360Player sources={[{ src: 'test.mp4', type: 'mp4', quality: '1080p' }]} ref={ref} />
+    );
+
+    const unsubscribe = ref.current?.on('ready', handler);
+    ref.current?.off('ready', handler);
+
+    expect(mockPlayer.on).toHaveBeenCalledWith('ready', handler);
+    expect(mockPlayer.off).toHaveBeenCalledWith('ready', handler);
+    expect(typeof unsubscribe).toBe('function');
   });
 
   it('syncs props to the imperative API', () => {

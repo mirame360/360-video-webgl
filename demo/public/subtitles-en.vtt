@@ -1,0 +1,10 @@
+WEBVTT
+
+00:00:01.000 --> 00:00:05.000
+WebGL subtitle plugin active.
+
+00:00:06.000 --> 00:00:11.000
+Captions stay in the player overlay while the 360 video renders through WebGL.
+
+00:00:12.000 --> 00:00:18.000
+Switch quality, drag the scene, or enable motion controls; subtitles remain attached.

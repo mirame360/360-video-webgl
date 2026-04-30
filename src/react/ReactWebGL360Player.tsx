@@ -71,6 +71,8 @@ export const ReactWebGL360Player = forwardRef<PlayerInstance, ReactWebGL360Playe
 
   useImperativeHandle(ref, () => {
     return {
+      on: (event, handler) => playerRef.current?.on(event, handler) ?? (() => undefined),
+      off: (event, handler) => playerRef.current?.off(event, handler),
       play: () => playerRef.current?.play() ?? Promise.resolve(),
       pause: () => playerRef.current?.pause(),
       stop: () => playerRef.current?.stop(),
