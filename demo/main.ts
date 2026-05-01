@@ -6,11 +6,13 @@ import {
   createStereoPlugin,
   createSubtitlesPlugin,
   createWatermarkPlugin,
+  createXRPlugin,
   createWebGL360Player,
   isSecureContext,
   type WebGL360ColorFilters,
   type WebGL360Player,
   type WebGL360Source,
+  type WatermarkPosition,
 } from '../src/index';
 
 const viewer = document.querySelector<HTMLElement>('#viewer');
@@ -50,6 +52,17 @@ const btnFullscreen = document.querySelector<HTMLButtonElement>('#ui-fullscreen'
 const btnResetColor = document.querySelector<HTMLButtonElement>('#color-reset');
 const colorFilterInputs = Array.from(document.querySelectorAll<HTMLInputElement>('[data-color-filter]'));
 
+// New controls
+const wmTextInput = document.querySelector<HTMLInputElement>('#wm-text');
+const wmPositionSelect = document.querySelector<HTMLSelectElement>('#wm-position');
+const btnAnalyticsFlush = document.querySelector<HTMLButtonElement>('#analytics-flush');
+const statDuration = document.querySelector<HTMLElement>('#stat-duration');
+const btnApiStereoToggle = document.querySelector<HTMLButtonElement>('#api-stereo-toggle');
+const btnApiStereoOn = document.querySelector<HTMLButtonElement>('#api-stereo-on');
+const btnApiStereoOff = document.querySelector<HTMLButtonElement>('#api-stereo-off');
+const btnApiSubToggle = document.querySelector<HTMLButtonElement>('#api-sub-toggle');
+const apiSubTrackSelect = document.querySelector<HTMLSelectElement>('#api-sub-track');
+
 let player: WebGL360Player | undefined;
 let lastStateJson = '';
 let hasStartedPlaying = false;
@@ -59,7 +72,7 @@ const analytics = createAnalyticsPlugin({
   track(event, payload) {
     writeEvent(event, payload);
   },
-  viewDurationIntervalMs: 5000,
+  viewDurationIntervalMs: 2000,
 });
 const subtitles = createSubtitlesPlugin({
   tracks: [
@@ -69,6 +82,12 @@ const subtitles = createSubtitlesPlugin({
       label: 'English',
       srclang: 'en',
       default: true,
+    },
+    {
+      id: 'es',
+      src: '/subtitles-es.vtt',
+      label: 'Spanish',
+      srclang: 'es',
     },
   ],
 });
@@ -82,6 +101,7 @@ const stereo = createStereoPlugin({
   eyeYawOffset: 1.5,
   requestFullscreen: false,
 });
+const xr = createXRPlugin();
 
 function formatFilterValue(filter: keyof WebGL360ColorFilters, value: number): string {
   if (filter === 'contrast' || filter === 'saturation') {
@@ -129,6 +149,10 @@ function formatTime(seconds: number): string {
 function updateUI() {
   if (!player || !progressBar || !timeDisplay) return;
   const state = player.getState();
+
+  if (statDuration) {
+    statDuration.textContent = `${(analytics.getTotalViewDurationMs() / 1000).toFixed(1)}s`;
+  }
   
   // Only update heavy DOM elements if state actually changed
   const stateJson = JSON.stringify({
@@ -136,6 +160,7 @@ function updateUI() {
     isMuted: state.isMuted,
     isMotionEnabled: state.isMotionEnabled,
     isDebug: state.isDebug,
+    isStereoEnabled: state.isStereoEnabled,
     quality: state.selectedSource?.quality,
     fov: state.fov.toFixed(1)
   });
@@ -185,6 +210,15 @@ function updateUI() {
 
     if (btnDebug) {
       btnDebug.style.color = state.isDebug ? '#4ade80' : '#fff';
+    }
+
+    if (btnApiStereoToggle) {
+      btnApiStereoToggle.style.color = state.isStereoEnabled ? '#4ade80' : '#fff';
+    }
+
+    if (apiSubTrackSelect) {
+      const activeTrack = subtitles.getActiveTrack();
+      apiSubTrackSelect.value = subtitles.isEnabled() && activeTrack ? activeTrack.id : '';
     }
 
     lastStateJson = stateJson;
@@ -242,6 +276,41 @@ btnDebug?.addEventListener('click', () => {
   player.setDebug(!player.getState().isDebug);
 });
 
+// Watermark API Demo
+wmTextInput?.addEventListener('input', () => {
+  watermark.setText(wmTextInput.value);
+});
+
+wmPositionSelect?.addEventListener('change', () => {
+  watermark.setPosition(wmPositionSelect.value as WatermarkPosition);
+});
+
+// Analytics API Demo
+btnAnalyticsFlush?.addEventListener('click', () => {
+  analytics.flush();
+  writeEvent('analytics_flushed', { totalMs: analytics.getTotalViewDurationMs() });
+});
+
+// Stereo API Demo
+btnApiStereoToggle?.addEventListener('click', () => stereo.toggle());
+btnApiStereoOn?.addEventListener('click', () => stereo.setEnabled(true));
+btnApiStereoOff?.addEventListener('click', () => stereo.setEnabled(false));
+
+// Subtitles API Demo
+btnApiSubToggle?.addEventListener('click', () => {
+  subtitles.setEnabled(!subtitles.isEnabled());
+});
+
+apiSubTrackSelect?.addEventListener('change', () => {
+  const trackId = apiSubTrackSelect.value;
+  if (!trackId) {
+    subtitles.setEnabled(false);
+  } else {
+    subtitles.setEnabled(true);
+    subtitles.setTrack(trackId);
+  }
+});
+
 const syncFullscreenUI = () => {
   const container = document.querySelector('#viewer-container');
   const btn = document.querySelector<HTMLButtonElement>('#ui-fullscreen');
@@ -258,26 +327,14 @@ const syncFullscreenUI = () => {
 
 const toggleFullscreen = () => {
   const container = document.querySelector('#viewer-container');
-  if (!container) return;
+  if (!container || !player) return;
 
   const isFullscreen = !!document.fullscreenElement || container.classList.contains('is-pseudo-fullscreen');
 
   if (!isFullscreen) {
-    if (container.requestFullscreen) {
-      container.requestFullscreen().then(() => syncFullscreenUI()).catch(() => {
-        container.classList.add('is-pseudo-fullscreen');
-        syncFullscreenUI();
-      });
-    } else {
-      container.classList.add('is-pseudo-fullscreen');
-      syncFullscreenUI();
-    }
+    player.requestFullscreen().then(() => syncFullscreenUI());
   } else {
-    if (document.exitFullscreen && document.fullscreenElement) {
-      document.exitFullscreen();
-    }
-    container.classList.remove('is-pseudo-fullscreen');
-    syncFullscreenUI();
+    player.exitFullscreen().then(() => syncFullscreenUI());
   }
 };
 
@@ -353,7 +410,7 @@ function loadPlayer(targetQuality?: string) {
 
   player = createWebGL360Player(viewer, {
     sources,
-    plugins: [colorGrading, analytics, subtitles, watermark, stereo],
+    plugins: [colorGrading, analytics, subtitles, watermark, stereo, xr],
     loop: DEMO_CONFIG.loop,
     preSources: skipIntro ? [] : [
       { src: 'example_720p.mp4', type: 'mp4', quality: '720p' }

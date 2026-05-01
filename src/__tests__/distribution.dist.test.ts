@@ -8,6 +8,10 @@ interface UmdContext {
   self: Record<string, unknown>;
   WebGL360Player?: {
     createWebGL360Player?: unknown;
+    createHotspotsPlugin?: unknown;
+    createTimelinePlugin?: unknown;
+    createXRPlugin?: unknown;
+    defineWebGL360PlayerElement?: unknown;
     selectInitialSource?: unknown;
   };
 }
@@ -18,6 +22,10 @@ describe('distribution artifacts', () => {
     const mod = await import(/* @vite-ignore */ bundleUrl);
 
     expect(mod.createWebGL360Player).toEqual(expect.any(Function));
+    expect(mod.createHotspotsPlugin).toEqual(expect.any(Function));
+    expect(mod.createTimelinePlugin).toEqual(expect.any(Function));
+    expect(mod.createXRPlugin).toEqual(expect.any(Function));
+    expect(mod.defineWebGL360PlayerElement).toEqual(expect.any(Function));
     expect(mod.selectInitialSource).toEqual(expect.any(Function));
   });
 
@@ -35,6 +43,10 @@ describe('distribution artifacts', () => {
     expect(context).toHaveProperty('WebGL360Player');
     expect(context.WebGL360Player).toMatchObject({
       createWebGL360Player: expect.any(Function),
+      createHotspotsPlugin: expect.any(Function),
+      createTimelinePlugin: expect.any(Function),
+      createXRPlugin: expect.any(Function),
+      defineWebGL360PlayerElement: expect.any(Function),
       selectInitialSource: expect.any(Function),
     });
   });

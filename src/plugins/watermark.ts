@@ -110,12 +110,12 @@ function applyWatermarkStyles(element: HTMLElement, position: WatermarkPosition)
   element.style.alignItems = 'center';
   element.style.maxWidth = 'min(70%, 360px)';
   element.style.padding = '7px 12px';
-  element.style.border = '1px solid rgba(255, 255, 255, 0.16)';
+  element.style.border = '1px solid var(--webgl-360-control-border, rgba(255, 255, 255, 0.16))';
   element.style.borderRadius = '999px';
-  element.style.background = 'rgba(0, 0, 0, 0.58)';
+  element.style.background = 'var(--webgl-360-control-bg, rgba(0, 0, 0, 0.58))';
   element.style.backdropFilter = 'blur(8px)';
-  element.style.color = '#fff';
-  element.style.font = '700 12px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  element.style.color = 'var(--webgl-360-control-color, #fff)';
+  element.style.font = '700 12px/1 var(--webgl-360-font-family, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif)';
   element.style.letterSpacing = '0';
   element.style.textDecoration = 'none';
   element.style.whiteSpace = 'nowrap';

@@ -25,3 +25,7 @@ export { analyticsPlugin, createAnalyticsPlugin } from './plugins/analytics';
 export { createSubtitlesPlugin, subtitlesPlugin } from './plugins/subtitles';
 export { createWatermarkPlugin, watermarkPlugin } from './plugins/watermark';
 export { createStereoPlugin, stereoPlugin } from './plugins/stereo';
+export { createXRPlugin, xrPlugin } from './plugins/xr';
+export { createHotspotsPlugin, hotspotsPlugin } from './plugins/hotspots';
+export { createTimelinePlugin, timelinePlugin } from './plugins/timeline';
+export { defineWebGL360PlayerElement, WebGL360PlayerElement } from './web-component';

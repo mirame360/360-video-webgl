@@ -81,10 +81,35 @@ export const ReactWebGL360Player = forwardRef<PlayerInstance, ReactWebGL360Playe
       setYaw: (yaw: number) => playerRef.current?.setYaw(yaw),
       setPitch: (pitch: number) => playerRef.current?.setPitch(pitch),
       setFov: (fov: number) => playerRef.current?.setFov(fov),
+      setView: (view) => playerRef.current?.setView(view),
+      getView: () => {
+        if (!playerRef.current) {
+          throw new Error('WebGL360Player is not initialized.');
+        }
+
+        return playerRef.current.getView();
+      },
       setMuted: (muted: boolean) => playerRef.current?.setMuted(muted),
       setDebug: (enabled: boolean) => playerRef.current?.setDebug(enabled),
       setMotionEnabled: (enabled: boolean) => playerRef.current?.setMotionEnabled(enabled) ?? Promise.resolve(false),
       setQuality: (quality) => playerRef.current?.setQuality(quality) ?? Promise.resolve({ ok: false, quality, reason: 'player is not ready' }),
+      exportConfig: () => {
+        if (!playerRef.current) {
+          throw new Error('WebGL360Player is not initialized.');
+        }
+
+        return playerRef.current.exportConfig();
+      },
+      importConfig: (config) => playerRef.current?.importConfig(config) ?? Promise.resolve(),
+      requestFullscreen: () => playerRef.current?.requestFullscreen() ?? Promise.resolve(false),
+      exitFullscreen: () => playerRef.current?.exitFullscreen() ?? Promise.resolve(false),
+      captureFrame: (options) => {
+        if (!playerRef.current) {
+          return Promise.reject(new Error('WebGL360Player is not initialized.'));
+        }
+
+        return playerRef.current.captureFrame(options);
+      },
       getState: () => {
         if (!playerRef.current) {
           throw new Error('WebGL360Player is not initialized.');

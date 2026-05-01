@@ -1,6 +1,10 @@
+import type { WebGLRenderer } from 'three';
+
 export type WebGL360SourceType = 'hls' | 'mp4';
 
 export type WebGL360Quality = string;
+export type WebGL360ProjectionMode = '360' | '180';
+export type WebGL360StereoSourceLayout = 'mono' | 'left-right' | 'top-bottom';
 
 export interface WebGL360Source {
   src: string;
@@ -36,10 +40,38 @@ export interface WebGL360ColorFilters {
   vignette?: number;
 }
 
+export interface WebGL360ScreenPoint {
+  x: number;
+  y: number;
+}
+
+export interface WebGL360View {
+  yaw: number;
+  pitch: number;
+  fov: number;
+}
+
+export interface WebGL360ExportedConfig {
+  view: WebGL360View;
+  muted: boolean;
+  debug: boolean;
+  motionEnabled: boolean;
+  stereoMode: Required<WebGL360StereoMode>;
+  colorFilters: Required<WebGL360ColorFilters>;
+  quality?: WebGL360Quality;
+}
+
+export interface WebGL360CaptureFrameOptions {
+  type?: 'image/png' | 'image/jpeg' | string;
+  quality?: number;
+}
+
 export interface WebGL360StereoMode {
   enabled: boolean;
   eyeYawOffset?: number;
 }
+
+export type WebGL360RendererHandle = WebGLRenderer;
 
 export interface WebGL360SourceSupport {
   source: WebGL360Source;
@@ -152,10 +184,25 @@ export interface WebGL360PluginContext {
   emitDiagnostic: (event: Omit<WebGL360DiagnosticEvent, 'at'>) => void;
   registerCleanup: (cleanup: WebGL360PluginCleanup) => void;
   mountControl: (element: HTMLElement) => WebGL360PluginCleanup;
+  registerSourceLoader: (type: WebGL360SourceType, loader: WebGL360SourceLoader) => WebGL360PluginCleanup;
   setColorFilters: (filters: WebGL360ColorFilters) => void;
   getColorFilters: () => Required<WebGL360ColorFilters>;
   setStereoMode: (mode: WebGL360StereoMode) => void;
   getStereoMode: () => Required<WebGL360StereoMode>;
+  projectYawPitchToScreen: (yaw: number, pitch: number) => WebGL360ScreenPoint | null;
+  onRenderFrame: (callback: (delta: number) => void) => WebGL360PluginCleanup;
+  getOverlayRoot: () => HTMLElement;
+  /**
+   * ADVANCED: Returns the current underlying THREE.WebGLRenderer instance.
+   * This is unstable and should be used with caution.
+   */
+  getRenderer: () => WebGL360RendererHandle | undefined;
+  /**
+   * ADVANCED: Direct access to the underlying THREE.WebGLRenderer instance.
+   * Prefer getRenderer() because plugins are installed before the renderer may exist.
+   * This is unstable and should be used with caution.
+   */
+  renderer?: WebGL360RendererHandle;
 }
 
 export type WebGL360PluginCleanup = () => void | Promise<void>;
@@ -181,6 +228,8 @@ export interface WebGL360PlayerOptions {
   defaultQuality?: WebGL360Quality;
   maxQuality?: WebGL360Quality;
   sourcePreference?: WebGL360SourceType[];
+  projectionMode?: WebGL360ProjectionMode;
+  stereoSourceLayout?: WebGL360StereoSourceLayout;
   initialYaw?: number;
   initialPitch?: number;
   initialFov?: number;
@@ -222,6 +271,8 @@ export interface NormalizedWebGL360PlayerOptions extends Required<
     WebGL360PlayerOptions,
     | 'sources'
     | 'sourcePreference'
+    | 'projectionMode'
+    | 'stereoSourceLayout'
     | 'initialYaw'
     | 'initialPitch'
     | 'initialFov'
@@ -308,10 +359,17 @@ export interface WebGL360Player {
   setYaw: (yaw: number) => void;
   setPitch: (pitch: number) => void;
   setFov: (fov: number) => void;
+  setView: (view: Partial<WebGL360View>) => void;
+  getView: () => WebGL360View;
   setMuted: (muted: boolean) => void;
   setDebug: (enabled: boolean) => void;
   setMotionEnabled: (enabled: boolean) => Promise<boolean>;
   setQuality: (quality: WebGL360Quality) => Promise<WebGL360QualitySwitchResult>;
+  exportConfig: () => WebGL360ExportedConfig;
+  importConfig: (config: Partial<WebGL360ExportedConfig>) => Promise<void>;
+  requestFullscreen: () => Promise<boolean>;
+  exitFullscreen: () => Promise<boolean>;
+  captureFrame: (options?: WebGL360CaptureFrameOptions) => Promise<Blob>;
   getState: () => WebGL360PlayerState;
 }
 

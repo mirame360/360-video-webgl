@@ -30,7 +30,9 @@ export function createStereoPlugin(options: StereoPluginOptions = {}): StereoPlu
 
     if (button) {
       button.dataset.active = enabled ? 'true' : 'false';
-      button.style.color = enabled ? '#4ade80' : '#fff';
+      button.style.color = enabled
+        ? 'var(--webgl-360-control-active-color, #4ade80)'
+        : 'var(--webgl-360-control-color, #fff)';
       button.setAttribute('aria-pressed', String(enabled));
     }
   };
@@ -91,11 +93,11 @@ export function createStereoPlugin(options: StereoPluginOptions = {}): StereoPlu
 function applyStereoButtonStyles(button: HTMLButtonElement): void {
   button.style.width = '38px';
   button.style.height = '34px';
-  button.style.border = '1px solid rgba(255, 255, 255, 0.16)';
+  button.style.border = '1px solid var(--webgl-360-control-border, rgba(255, 255, 255, 0.16))';
   button.style.borderRadius = '8px';
-  button.style.background = 'rgba(0, 0, 0, 0.62)';
+  button.style.background = 'var(--webgl-360-control-bg, rgba(0, 0, 0, 0.62))';
   button.style.backdropFilter = 'blur(8px)';
-  button.style.font = '700 12px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  button.style.font = '700 12px/1 var(--webgl-360-font-family, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif)';
   button.style.letterSpacing = '0';
   button.style.cursor = 'pointer';
 }

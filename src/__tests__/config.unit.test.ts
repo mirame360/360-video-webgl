@@ -17,6 +17,8 @@ describe('normalizePlayerOptions', () => {
     expect(options.defaultQuality).toBeUndefined();
     expect(options.maxQuality).toBeUndefined();
     expect(options.sourcePreference).toEqual(['hls', 'mp4']);
+    expect(options.projectionMode).toBe('360');
+    expect(options.stereoSourceLayout).toBe('mono');
     expect(options.controls).toBe(true);
     expect(options.motionControls).toBe(true);
     expect(options.crossOrigin).toBe('anonymous');
@@ -38,6 +40,17 @@ describe('normalizePlayerOptions', () => {
 
   it('rejects empty source lists', () => {
     expect(() => normalizePlayerOptions({ sources: [] })).toThrow('requires at least one source');
+  });
+
+  it('preserves advanced rendering options', () => {
+    const options = normalizePlayerOptions({
+      sources,
+      projectionMode: '180',
+      stereoSourceLayout: 'top-bottom',
+    });
+
+    expect(options.projectionMode).toBe('180');
+    expect(options.stereoSourceLayout).toBe('top-bottom');
   });
 });
 

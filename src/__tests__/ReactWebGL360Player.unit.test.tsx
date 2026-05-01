@@ -18,10 +18,33 @@ describe('ReactWebGL360Player', () => {
     setYaw: vi.fn(),
     setPitch: vi.fn(),
     setFov: vi.fn(),
+    setView: vi.fn(),
+    getView: vi.fn().mockReturnValue({ yaw: 0, pitch: 0, fov: 75 }),
     setMuted: vi.fn(),
     setDebug: vi.fn(),
     setMotionEnabled: vi.fn().mockResolvedValue(true),
     setQuality: vi.fn().mockResolvedValue({ ok: true, quality: '1080p' }),
+    exportConfig: vi.fn().mockReturnValue({
+      view: { yaw: 0, pitch: 0, fov: 75 },
+      muted: true,
+      debug: false,
+      motionEnabled: false,
+      stereoMode: { enabled: false, eyeYawOffset: 1.5 },
+      colorFilters: {
+        exposure: 0,
+        brightness: 1,
+        contrast: 1,
+        saturation: 1,
+        temperature: 0,
+        tint: 0,
+        vignette: 0,
+      },
+      quality: '1080p',
+    }),
+    importConfig: vi.fn().mockResolvedValue(undefined),
+    requestFullscreen: vi.fn().mockResolvedValue(true),
+    exitFullscreen: vi.fn().mockResolvedValue(true),
+    captureFrame: vi.fn().mockResolvedValue(new Blob(['frame'], { type: 'image/png' })),
     getState: vi.fn().mockReturnValue({
       mode: 'ready',
       yaw: 0,
@@ -72,6 +95,9 @@ describe('ReactWebGL360Player', () => {
     expect(ref.current).not.toBeNull();
     ref.current?.play();
     expect(mockPlayer.play).toHaveBeenCalledOnce();
+    ref.current?.setView({ yaw: 15 });
+    expect(mockPlayer.setView).toHaveBeenCalledWith({ yaw: 15 });
+    expect(ref.current?.getView()).toEqual({ yaw: 0, pitch: 0, fov: 75 });
   });
 
   it('forwards event subscription methods through the imperative ref', () => {

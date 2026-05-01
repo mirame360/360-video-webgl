@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createWebGL360Player } from '../createPlayer';
 import { createColorGradingPlugin } from '../plugins/colorGrading';
+import { createStereoPlugin } from '../plugins/stereo';
 import type { WebGL360PluginContext, WebGL360Source } from '../types';
 
 const rendererMocks = vi.hoisted(() => ({
@@ -8,6 +9,8 @@ const rendererMocks = vi.hoisted(() => ({
   setColorFilters: vi.fn(),
   setStereoMode: vi.fn(),
   setPose: vi.fn(),
+  projectYawPitchToScreen: vi.fn(),
+  captureFrame: vi.fn(),
   start: vi.fn(),
 }));
 
@@ -51,6 +54,8 @@ describe('createWebGL360Player integration', () => {
     rendererMocks.setColorFilters.mockClear();
     rendererMocks.setStereoMode.mockClear();
     rendererMocks.setPose.mockClear();
+    rendererMocks.projectYawPitchToScreen.mockClear();
+    rendererMocks.captureFrame.mockClear();
     rendererMocks.start.mockClear();
     stubMediaElement({
       canPlayType: (type) => {
@@ -123,10 +128,91 @@ describe('createWebGL360Player integration', () => {
       selectedQuality: '1080p',
     }));
 
+    player.setView({ yaw: 90, pitch: -10, fov: 65 });
+
+    expect(player.getView()).toEqual({ yaw: 90, pitch: -10, fov: 65 });
+
     player.destroy();
 
     expect(player.getState().mode).toBe('destroyed');
     expect(rendererMocks.destroy).toHaveBeenCalled();
+  });
+
+  it('exports and imports presentation config', async () => {
+    const container = createContainer();
+    const onReady = vi.fn();
+    const player = createWebGL360Player(container, {
+      sources: [fourKSource, mp4Source],
+      defaultQuality: '1080p',
+      sourcePreference: ['mp4', 'hls'],
+      onReady,
+    });
+
+    await vi.waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+
+    await player.importConfig({
+      view: { yaw: 30, pitch: 12, fov: 55 },
+      muted: false,
+      debug: true,
+      stereoMode: { enabled: true, eyeYawOffset: 2 },
+      colorFilters: {
+        exposure: 0.1,
+        brightness: 1.05,
+        contrast: 1.2,
+        saturation: 0.9,
+        temperature: 0.2,
+        tint: -0.1,
+        vignette: 0.3,
+      },
+      quality: '4k',
+    });
+
+    expect(player.exportConfig()).toMatchObject({
+      view: { yaw: 30, pitch: 12, fov: 55 },
+      muted: false,
+      debug: true,
+      stereoMode: { enabled: true, eyeYawOffset: 2 },
+      quality: '4k',
+    });
+    expect(player.getState().selectedSource?.quality).toBe('4k');
+    expect(rendererMocks.setColorFilters).toHaveBeenLastCalledWith(expect.objectContaining({ exposure: 0.1 }));
+  });
+
+  it('captures the current renderer frame', async () => {
+    const container = createContainer();
+    const onReady = vi.fn();
+    const blob = new Blob(['frame'], { type: 'image/png' });
+    rendererMocks.captureFrame.mockResolvedValue(blob);
+    const player = createWebGL360Player(container, {
+      sources: [mp4Source],
+      onReady,
+    });
+
+    await vi.waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+
+    await expect(player.captureFrame({ type: 'image/png' })).resolves.toBe(blob);
+    expect(rendererMocks.captureFrame).toHaveBeenCalledWith({ type: 'image/png' });
+  });
+
+  it('falls back to pseudo-fullscreen when native fullscreen is unavailable', async () => {
+    const container = createContainer();
+    const onReady = vi.fn();
+    Object.defineProperty(container, 'requestFullscreen', {
+      configurable: true,
+      value: undefined,
+    });
+    const player = createWebGL360Player(container, {
+      sources: [mp4Source],
+      onReady,
+    });
+
+    await vi.waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+
+    await expect(player.requestFullscreen()).resolves.toBe(false);
+    expect(container.classList.contains('is-pseudo-fullscreen')).toBe(true);
+
+    await expect(player.exitFullscreen()).resolves.toBe(false);
+    expect(container.classList.contains('is-pseudo-fullscreen')).toBe(false);
   });
 
   it('calls the caller-provided fallback when no configured source is playable', async () => {
@@ -182,6 +268,81 @@ describe('createWebGL360Player integration', () => {
     expect(cleanup).toHaveBeenCalledOnce();
   });
 
+  it('uses plugin-registered source loaders before the fallback sourceLoader option', async () => {
+    stubMediaElement({
+      canPlayType: (type) => (type === 'video/mp4' ? 'probably' : ''),
+    });
+
+    const container = createContainer();
+    const pluginCleanup = vi.fn();
+    const hlsLoader = vi.fn(async ({ video, source, waitForReady }) => {
+      video.src = source.src;
+      await waitForReady();
+      return pluginCleanup;
+    });
+    const fallbackLoader = vi.fn(async ({ defaultLoad }) => defaultLoad());
+    const onReady = vi.fn();
+    const player = createWebGL360Player(container, {
+      sources: [hlsSource],
+      sourceLoader: fallbackLoader,
+      plugins: [{
+        id: 'hls-loader',
+        install(context) {
+          context.registerCleanup(context.registerSourceLoader('hls', hlsLoader));
+        },
+      }],
+      onReady,
+    });
+
+    await vi.waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+
+    expect(hlsLoader).toHaveBeenCalledWith(expect.objectContaining({ source: hlsSource }));
+    expect(fallbackLoader).not.toHaveBeenCalled();
+    expect(player.getState().selectedSource?.type).toBe('hls');
+
+    player.destroy();
+
+    expect(pluginCleanup).toHaveBeenCalledOnce();
+  });
+
+  it('runs registered source loader cleanup on quality switch', async () => {
+    const container = createContainer();
+    const cleanup1080p = vi.fn();
+    const cleanup4k = vi.fn();
+    const mp4Loader = vi.fn(async ({ video, source, waitForReady }) => {
+      video.src = source.src;
+      await waitForReady();
+      return source.quality === '1080p' ? cleanup1080p : cleanup4k;
+    });
+    const onReady = vi.fn();
+    const player = createWebGL360Player(container, {
+      sources: [fourKSource, mp4Source],
+      defaultQuality: '1080p',
+      sourcePreference: ['mp4', 'hls'],
+      plugins: [{
+        id: 'mp4-loader',
+        install(context) {
+          context.registerCleanup(context.registerSourceLoader('mp4', mp4Loader));
+        },
+      }],
+      onReady,
+    });
+
+    await vi.waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+
+    expect(mp4Loader).toHaveBeenCalledWith(expect.objectContaining({ source: mp4Source }));
+
+    const result = await player.setQuality('4k');
+
+    expect(result.ok).toBe(true);
+    expect(cleanup1080p).toHaveBeenCalledOnce();
+    expect(mp4Loader).toHaveBeenCalledWith(expect.objectContaining({ source: fourKSource }));
+
+    player.destroy();
+
+    expect(cleanup4k).toHaveBeenCalledOnce();
+  });
+
   it('installs plugins, emits events, and runs plugin cleanup on destroy', async () => {
     const container = createContainer();
     const cleanup = vi.fn();
@@ -214,6 +375,10 @@ describe('createWebGL360Player integration', () => {
       getVideo: expect.any(Function),
       getState: expect.any(Function),
       mountControl: expect.any(Function),
+      getOverlayRoot: expect.any(Function),
+      onRenderFrame: expect.any(Function),
+      projectYawPitchToScreen: expect.any(Function),
+      registerSourceLoader: expect.any(Function),
       registerCleanup: expect.any(Function),
     }));
     expect(container.querySelector('.webgl-360-plugin-controls')?.textContent).toBe('Plugin');
@@ -508,6 +673,31 @@ describe('createWebGL360Player integration', () => {
     expect(rendererMocks.destroy).not.toHaveBeenCalled();
     expect(rendererMocks.start).toHaveBeenCalledOnce();
     expect(onQualityChange).toHaveBeenCalledWith(expect.objectContaining({ ok: true, quality: '4k' }), expect.any(Object));
+  });
+
+  it('recreates the renderer when switching quality while stereo mode is enabled', async () => {
+    const container = createContainer();
+    const onReady = vi.fn();
+    const stereo = createStereoPlugin({ controls: false });
+    const player = createWebGL360Player(container, {
+      sources: [fourKSource, mp4Source],
+      defaultQuality: '1080p',
+      sourcePreference: ['mp4', 'hls'],
+      plugins: [stereo],
+      onReady,
+    });
+
+    await vi.waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+    stereo.setEnabled(true);
+
+    const result = await player.setQuality('4k');
+
+    expect(result).toMatchObject({ ok: true, quality: '4k' });
+    expect(player.getState().selectedSource?.quality).toBe('4k');
+    expect(player.getState().isStereoEnabled).toBe(true);
+    expect(rendererMocks.destroy).toHaveBeenCalledOnce();
+    expect(rendererMocks.start).toHaveBeenCalledTimes(2);
+    expect(rendererMocks.setStereoMode).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: true }));
   });
 
   it('stops and removes all plugin video elements on destroy', async () => {

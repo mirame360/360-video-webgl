@@ -55,7 +55,7 @@ function ensureStyles(): void {
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: rgba(0, 0, 0, 0.5);
+      background: var(--webgl-360-loader-bg, rgba(0, 0, 0, 0.5));
       z-index: 100;
       pointer-events: none;
       backdrop-filter: blur(4px);
@@ -63,8 +63,8 @@ function ensureStyles(): void {
     .webgl-360-player__spinner {
       width: 48px;
       height: 48px;
-      border: 4px solid rgba(255, 255, 255, 0.1);
-      border-left-color: #3b82f6;
+      border: 4px solid var(--webgl-360-spinner-track, rgba(255, 255, 255, 0.1));
+      border-left-color: var(--webgl-360-spinner-accent, var(--webgl-360-accent, #3b82f6));
       border-radius: 50%;
       animation: webgl-360-spin 0.8s linear infinite;
     }

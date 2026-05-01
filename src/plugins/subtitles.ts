@@ -95,9 +95,9 @@ export function createSubtitlesPlugin(options: SubtitlesPluginOptions): Subtitle
     updateControlState();
   };
 
-  const attachTracks = (): void => {
+  const attachTracks = (force = false): void => {
     const video = context?.getVideo();
-    if (!video || video === currentVideo) {
+    if (!video || (video === currentVideo && !force)) {
       updateTrackModes();
       return;
     }
@@ -140,8 +140,8 @@ export function createSubtitlesPlugin(options: SubtitlesPluginOptions): Subtitle
       applyOverlayStyles(overlay);
       pluginContext.container.appendChild(overlay);
 
-      cleanups.push(pluginContext.on('sourcechange', attachTracks));
-      cleanups.push(pluginContext.on('ready', attachTracks));
+      cleanups.push(pluginContext.on('sourcechange', () => attachTracks(true)));
+      cleanups.push(pluginContext.on('ready', () => attachTracks(true)));
       cleanups.push(pluginContext.on('timeupdate', renderActiveCues));
 
       if (options.controls ?? true) {
@@ -231,7 +231,9 @@ export function createSubtitlesPlugin(options: SubtitlesPluginOptions): Subtitle
     }
 
     controlButton.dataset.active = enabled && Boolean(activeTrackId) ? 'true' : 'false';
-    controlButton.style.color = enabled && activeTrackId ? '#4ade80' : '#fff';
+    controlButton.style.color = enabled && activeTrackId
+      ? 'var(--webgl-360-control-active-color, #4ade80)'
+      : 'var(--webgl-360-control-color, #fff)';
     controlButton.disabled = tracks.length === 0;
     controlMenu.replaceChildren();
 
@@ -292,8 +294,8 @@ function applyOverlayStyles(overlay: HTMLDivElement): void {
   overlay.style.pointerEvents = 'none';
   overlay.style.textAlign = 'center';
   overlay.style.font = '600 clamp(14px, 2.2vw, 24px)/1.35 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-  overlay.style.color = '#fff';
-  overlay.style.textShadow = '0 2px 4px rgba(0, 0, 0, 0.8)';
+  overlay.style.color = 'var(--webgl-360-subtitle-color, #fff)';
+  overlay.style.textShadow = 'var(--webgl-360-subtitle-shadow, 0 2px 4px rgba(0, 0, 0, 0.8))';
 }
 
 function applyLineStyles(line: HTMLDivElement): void {
@@ -301,7 +303,7 @@ function applyLineStyles(line: HTMLDivElement): void {
   line.style.maxWidth = '100%';
   line.style.padding = '4px 8px';
   line.style.borderRadius = '4px';
-  line.style.background = 'rgba(0, 0, 0, 0.62)';
+  line.style.background = 'var(--webgl-360-subtitle-bg, rgba(0, 0, 0, 0.62))';
   line.style.boxDecorationBreak = 'clone';
   line.style.setProperty('-webkit-box-decoration-break', 'clone');
 }
@@ -315,11 +317,11 @@ function applyControlRootStyles(root: HTMLDivElement): void {
 function applyControlButtonStyles(button: HTMLButtonElement): void {
   button.style.width = '38px';
   button.style.height = '34px';
-  button.style.border = '1px solid rgba(255, 255, 255, 0.16)';
+  button.style.border = '1px solid var(--webgl-360-control-border, rgba(255, 255, 255, 0.16))';
   button.style.borderRadius = '8px';
-  button.style.background = 'rgba(0, 0, 0, 0.62)';
+  button.style.background = 'var(--webgl-360-control-bg, rgba(0, 0, 0, 0.62))';
   button.style.backdropFilter = 'blur(8px)';
-  button.style.font = '700 12px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  button.style.font = '700 12px/1 var(--webgl-360-font-family, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif)';
   button.style.letterSpacing = '0';
   button.style.cursor = 'pointer';
 }
@@ -331,9 +333,9 @@ function applyControlMenuStyles(menu: HTMLDivElement): void {
   menu.style.transform = 'translateX(-50%)';
   menu.style.minWidth = '132px';
   menu.style.padding = '6px';
-  menu.style.border = '1px solid rgba(255, 255, 255, 0.16)';
+  menu.style.border = '1px solid var(--webgl-360-control-border, rgba(255, 255, 255, 0.16))';
   menu.style.borderRadius = '8px';
-  menu.style.background = 'rgba(0, 0, 0, 0.78)';
+  menu.style.background = 'var(--webgl-360-panel-bg, rgba(0, 0, 0, 0.78))';
   menu.style.backdropFilter = 'blur(10px)';
   menu.style.boxShadow = '0 12px 28px rgba(0, 0, 0, 0.34)';
 }
@@ -343,10 +345,12 @@ function applyControlMenuItemStyles(item: HTMLButtonElement, active: boolean): v
   item.style.width = '100%';
   item.style.border = 'none';
   item.style.borderRadius = '6px';
-  item.style.background = active ? 'rgba(74, 222, 128, 0.18)' : 'transparent';
-  item.style.color = active ? '#bbf7d0' : '#fff';
+  item.style.background = active ? 'var(--webgl-360-control-active-bg, rgba(74, 222, 128, 0.18))' : 'transparent';
+  item.style.color = active
+    ? 'var(--webgl-360-control-active-fg, #bbf7d0)'
+    : 'var(--webgl-360-control-color, #fff)';
   item.style.padding = '8px 10px';
-  item.style.font = '600 12px/1.2 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  item.style.font = '600 12px/1.2 var(--webgl-360-font-family, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif)';
   item.style.textAlign = 'left';
   item.style.cursor = 'pointer';
 }

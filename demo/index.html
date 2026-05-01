@@ -71,47 +71,98 @@
         </div>
       </section>
 
-      <section class="log-panel">
-        <h2>Events</h2>
-        <pre id="event-log">Waiting for input...</pre>
+      <section class="plugin-grid">
+        <section class="color-panel" aria-label="Color grading controls">
+          <div class="section-heading">
+            <h2>Color grading</h2>
+            <button id="color-reset" type="button" class="btn-small">Reset</button>
+          </div>
+
+          <div class="color-grid">
+            <label class="filter-control">
+              <span>Exposure <output data-color-value="exposure">0.00</output></span>
+              <input data-color-filter="exposure" type="range" min="-2" max="2" value="0" step="0.01">
+            </label>
+            <label class="filter-control">
+              <span>Brightness <output data-color-value="brightness">0.00</output></span>
+              <input data-color-filter="brightness" type="range" min="-1" max="1" value="0" step="0.01">
+            </label>
+            <label class="filter-control">
+              <span>Contrast <output data-color-value="contrast">1.00x</output></span>
+              <input data-color-filter="contrast" type="range" min="0" max="3" value="1" step="0.01">
+            </label>
+            <label class="filter-control">
+              <span>Saturation <output data-color-value="saturation">1.00x</output></span>
+              <input data-color-filter="saturation" type="range" min="0" max="3" value="1" step="0.01">
+            </label>
+          </div>
+        </section>
+
+        <section class="watermark-panel" aria-label="Watermark controls">
+          <div class="section-heading">
+            <h2>Watermark</h2>
+          </div>
+          <div class="control-group">
+            <label class="input-control">
+              <span>Text</span>
+              <input id="wm-text" type="text" placeholder="Watermark text..." value="MIRAME360.COM">
+            </label>
+            <label class="input-control">
+              <span>Position</span>
+              <select id="wm-position">
+                <option value="top-left">Top Left</option>
+                <option value="top-right">Top Right</option>
+                <option value="bottom-left">Bottom Left</option>
+                <option value="bottom-right">Bottom Right</option>
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <section class="analytics-panel" aria-label="Analytics information">
+          <div class="section-heading">
+            <h2>Analytics</h2>
+            <button id="analytics-flush" class="btn-small">Flush</button>
+          </div>
+          <div class="analytics-stats">
+            <div class="stat-item">
+              <span class="stat-label">Total view duration</span>
+              <span id="stat-duration" class="stat-value">0s</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="plugins-api-panel" aria-label="Programmatic API demo">
+          <div class="section-heading">
+            <h2>Programmatic API</h2>
+          </div>
+          <div class="api-grid">
+            <div class="api-item">
+              <span>Stereo</span>
+              <div class="btn-group">
+                <button id="api-stereo-toggle" class="btn-small">Toggle</button>
+                <button id="api-stereo-on" class="btn-small">On</button>
+                <button id="api-stereo-off" class="btn-small">Off</button>
+              </div>
+            </div>
+            <div class="api-item">
+              <span>Subtitles</span>
+              <div class="btn-group">
+                <button id="api-sub-toggle" class="btn-small">Toggle</button>
+                <select id="api-sub-track" class="btn-small">
+                  <option value="">Off</option>
+                  <option value="en">English</option>
+                  <option value="es">Spanish</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </section>
       </section>
 
-      <section class="color-panel" aria-label="Color grading controls">
-        <div class="section-heading">
-          <h2>Color grading</h2>
-          <button id="color-reset" type="button">Reset</button>
-        </div>
-
-        <div class="color-grid">
-          <label class="filter-control">
-            <span>Exposure <output data-color-value="exposure">0.00</output></span>
-            <input data-color-filter="exposure" type="range" min="-2" max="2" value="0" step="0.01">
-          </label>
-          <label class="filter-control">
-            <span>Brightness <output data-color-value="brightness">0.00</output></span>
-            <input data-color-filter="brightness" type="range" min="-1" max="1" value="0" step="0.01">
-          </label>
-          <label class="filter-control">
-            <span>Contrast <output data-color-value="contrast">1.00x</output></span>
-            <input data-color-filter="contrast" type="range" min="0" max="3" value="1" step="0.01">
-          </label>
-          <label class="filter-control">
-            <span>Saturation <output data-color-value="saturation">1.00x</output></span>
-            <input data-color-filter="saturation" type="range" min="0" max="3" value="1" step="0.01">
-          </label>
-          <label class="filter-control">
-            <span>Temperature <output data-color-value="temperature">0.00</output></span>
-            <input data-color-filter="temperature" type="range" min="-1" max="1" value="0" step="0.01">
-          </label>
-          <label class="filter-control">
-            <span>Tint <output data-color-value="tint">0.00</output></span>
-            <input data-color-filter="tint" type="range" min="-1" max="1" value="0" step="0.01">
-          </label>
-          <label class="filter-control">
-            <span>Vignette <output data-color-value="vignette">0.00</output></span>
-            <input data-color-filter="vignette" type="range" min="0" max="1" value="0" step="0.01">
-          </label>
-        </div>
+      <section class="log-panel">
+        <h2>Event Log</h2>
+        <pre id="event-log">Waiting for input...</pre>
       </section>
     </main>
   </body>

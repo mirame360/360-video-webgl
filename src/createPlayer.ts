@@ -18,7 +18,9 @@ import type {
   NormalizedWebGL360PlayerOptions,
   WebGL360DiagnosticEvent,
   WebGL360ColorFilters,
+  WebGL360CaptureFrameOptions,
   WebGL360EventMap,
+  WebGL360ExportedConfig,
   WebGL360FallbackContext,
   WebGL360Player,
   WebGL360PlayerOptions,
@@ -27,15 +29,28 @@ import type {
   WebGL360PluginCleanup,
   WebGL360Quality,
   WebGL360QualitySwitchResult,
+  WebGL360ScreenPoint,
   WebGL360SequenceStage,
   WebGL360Source,
+  WebGL360SourceLoader,
   WebGL360SourceLoaderCleanup,
   WebGL360SourceLoaderResult,
+  WebGL360SourceType,
   WebGL360StereoMode,
+  WebGL360View,
 } from './types';
 
 interface PermissionedDeviceOrientationEventConstructor {
   requestPermission?: () => Promise<PermissionState>;
+}
+
+interface FullscreenElement extends HTMLElement {
+  webkitRequestFullscreen?: () => Promise<void> | void;
+}
+
+interface FullscreenDocument extends Document {
+  webkitFullscreenElement?: Element | null;
+  webkitExitFullscreen?: () => Promise<void> | void;
 }
 
 type EventListenerMap = {
@@ -69,8 +84,10 @@ class WebGL360PlayerController {
   private renderer?: SceneRenderer;
   private controls?: ControlsHandle;
   private sourceLoaderCleanup?: WebGL360SourceLoaderCleanup;
+  private readonly sourceLoaders = new Map<WebGL360SourceType, WebGL360SourceLoader>();
   private readonly videoElements = new Set<HTMLVideoElement>();
   private readonly listeners: EventListenerMap = {};
+  private readonly renderFrameListeners = new Set<(delta: number) => void>();
   private readonly pluginCleanups: WebGL360PluginCleanup[] = [];
   private readonly installedPluginIds = new Set<string>();
   private readonly publicApi: WebGL360Player;
@@ -80,6 +97,7 @@ class WebGL360PlayerController {
     eyeYawOffset: 1.5,
   };
   private pluginControlsRoot?: HTMLDivElement;
+  private overlayRoot?: HTMLDivElement;
   private destroyed = false;
   private lastFrameTime = 0;
   private frameCount = 0;
@@ -146,10 +164,17 @@ class WebGL360PlayerController {
       setYaw: (yaw) => this.setYaw(yaw),
       setPitch: (pitch) => this.setPitch(pitch),
       setFov: (fov) => this.setFov(fov),
+      setView: (view) => this.setView(view),
+      getView: () => this.getView(),
       setMuted: (muted) => this.setMuted(muted),
       setDebug: (enabled) => this.setDebug(enabled),
       setMotionEnabled: (enabled) => this.setMotionEnabled(enabled),
       setQuality: (quality) => this.setQuality(quality),
+      exportConfig: () => this.exportConfig(),
+      importConfig: (config) => this.importConfig(config),
+      requestFullscreen: () => this.requestFullscreen(),
+      exitFullscreen: () => this.exitFullscreen(),
+      captureFrame: (options) => this.captureFrame(options),
       getState: () => this.getState(),
     };
   }
@@ -224,10 +249,16 @@ class WebGL360PlayerController {
         emitDiagnostic: (event) => this.recordDiagnostic(event),
         registerCleanup: (cleanupFn) => this.registerPluginCleanup(cleanupFn),
         mountControl: (element) => this.mountPluginControl(element),
+        registerSourceLoader: (type, loader) => this.registerSourceLoader(type, loader),
         setColorFilters: (filters) => this.setColorFilters(filters),
         getColorFilters: () => this.getColorFilters(),
         setStereoMode: (mode) => this.setStereoMode(mode),
         getStereoMode: () => this.getStereoMode(),
+        projectYawPitchToScreen: (yaw, pitch) => this.projectYawPitchToScreen(yaw, pitch),
+        onRenderFrame: (callback) => this.onRenderFrame(callback),
+        getOverlayRoot: () => this.getOverlayRoot(),
+        getRenderer: () => this.renderer?.threeRenderer,
+        renderer: this.renderer?.threeRenderer,
       });
 
       if (cleanup) {
@@ -254,6 +285,15 @@ class WebGL360PlayerController {
     this.pluginCleanups.push(cleanup);
   }
 
+  private registerSourceLoader(type: WebGL360SourceType, loader: WebGL360SourceLoader): WebGL360PluginCleanup {
+    this.sourceLoaders.set(type, loader);
+    return () => {
+      if (this.sourceLoaders.get(type) === loader) {
+        this.sourceLoaders.delete(type);
+      }
+    };
+  }
+
   private setColorFilters(filters: WebGL360ColorFilters): void {
     this.colorFilters = normalizeColorFilters(filters);
     this.renderer?.setColorFilters(this.colorFilters);
@@ -275,6 +315,49 @@ class WebGL360PlayerController {
 
   private getStereoMode(): Required<WebGL360StereoMode> {
     return { ...this.stereoMode };
+  }
+
+  private projectYawPitchToScreen(yaw: number, pitch: number): WebGL360ScreenPoint | null {
+    return this.renderer?.projectYawPitchToScreen(yaw, pitch) ?? null;
+  }
+
+  private onRenderFrame(callback: (delta: number) => void): WebGL360PluginCleanup {
+    this.renderFrameListeners.add(callback);
+    return () => {
+      this.renderFrameListeners.delete(callback);
+    };
+  }
+
+  private emitRenderFrame(delta: number): void {
+    for (const listener of Array.from(this.renderFrameListeners)) {
+      try {
+        listener(delta);
+      } catch (error) {
+        this.recordDiagnostic({
+          type: 'plugin_error',
+          message: 'Render frame listener failed',
+          error: getErrorMessage(error),
+        });
+      }
+    }
+  }
+
+  private getOverlayRoot(): HTMLElement {
+    if (this.overlayRoot) {
+      return this.overlayRoot;
+    }
+
+    const root = document.createElement('div');
+    root.className = 'webgl-360-overlay-root';
+    root.style.position = 'absolute';
+    root.style.inset = '0';
+    root.style.zIndex = '90';
+    root.style.pointerEvents = 'none';
+    root.style.overflow = 'hidden';
+
+    this.container.appendChild(root);
+    this.overlayRoot = root;
+    return root;
   }
 
   private mountPluginControl(element: HTMLElement): WebGL360PluginCleanup {
@@ -470,6 +553,96 @@ class WebGL360PlayerController {
     this.emitViewChange();
   }
 
+  setView(view: Partial<WebGL360View>): void {
+    this.state.yaw = view.yaw ?? this.state.yaw;
+    this.state.pitch = view.pitch === undefined ? this.state.pitch : clamp(view.pitch, -89, 89);
+    this.state.fov = view.fov === undefined ? this.state.fov : clamp(view.fov, this.config.minFov, this.config.maxFov);
+    this.renderer?.setPose({ yaw: this.state.yaw, pitch: this.state.pitch, fov: this.state.fov });
+    this.emitViewChange();
+  }
+
+  getView(): WebGL360View {
+    return {
+      yaw: this.state.yaw,
+      pitch: this.state.pitch,
+      fov: this.state.fov,
+    };
+  }
+
+  exportConfig(): WebGL360ExportedConfig {
+    return {
+      view: this.getView(),
+      muted: this.state.isMuted,
+      debug: this.state.isDebug,
+      motionEnabled: this.state.isMotionEnabled,
+      stereoMode: this.getStereoMode(),
+      colorFilters: this.getColorFilters(),
+      quality: this.state.selectedSource?.quality,
+    };
+  }
+
+  async importConfig(config: Partial<WebGL360ExportedConfig>): Promise<void> {
+    if (config.view) {
+      this.setView(config.view);
+    }
+    if (config.muted !== undefined) {
+      this.setMuted(config.muted);
+    }
+    if (config.debug !== undefined) {
+      this.setDebug(config.debug);
+    }
+    if (config.colorFilters) {
+      this.setColorFilters(config.colorFilters);
+    }
+    if (config.stereoMode) {
+      this.setStereoMode(config.stereoMode);
+    }
+    if (config.motionEnabled !== undefined) {
+      await this.setMotionEnabled(config.motionEnabled);
+    }
+    if (config.quality && config.quality !== this.state.selectedSource?.quality) {
+      await this.setQuality(config.quality);
+    }
+  }
+
+  async requestFullscreen(): Promise<boolean> {
+    const fullscreenElement = this.container as FullscreenElement;
+    const request = fullscreenElement.requestFullscreen ?? fullscreenElement.webkitRequestFullscreen;
+    if (request) {
+      try {
+        await request.call(fullscreenElement);
+        return true;
+      } catch {
+        this.container.classList.add('is-pseudo-fullscreen');
+        return false;
+      }
+    }
+
+    this.container.classList.add('is-pseudo-fullscreen');
+    return false;
+  }
+
+  async exitFullscreen(): Promise<boolean> {
+    const fullscreenDocument = document as FullscreenDocument;
+    const fullscreenElement = fullscreenDocument.fullscreenElement ?? fullscreenDocument.webkitFullscreenElement;
+    const exit = fullscreenDocument.exitFullscreen ?? fullscreenDocument.webkitExitFullscreen;
+    const wasNativeFullscreen = fullscreenElement === this.container;
+    if (exit && fullscreenElement) {
+      await exit.call(fullscreenDocument);
+    }
+
+    this.container.classList.remove('is-pseudo-fullscreen');
+    return wasNativeFullscreen;
+  }
+
+  async captureFrame(options: WebGL360CaptureFrameOptions = {}): Promise<Blob> {
+    if (!this.renderer || this.destroyed) {
+      throw new Error('Cannot capture frame before the renderer is ready.');
+    }
+
+    return this.renderer.captureFrame(options);
+  }
+
   async setQuality(quality: WebGL360Quality): Promise<WebGL360QualitySwitchResult> {
     if (!this.video || this.destroyed) {
       return this.finishQualityChange({ ok: false, quality, reason: 'player is not ready' });
@@ -494,12 +667,17 @@ class WebGL360PlayerController {
     const previousSource = this.state.selectedSource;
     const previousTime = this.video.currentTime || this.state.currentTime;
     const wasPaused = this.video.paused;
+    const restartRenderer = this.stereoMode.enabled;
 
     this.setMode('loading');
     this.loader.setState(`switching to ${quality}`);
 
     try {
-      await this.trySources(candidates, { notifyReady: false, restartRenderer: false });
+      if (restartRenderer) {
+        this.disposeRenderer();
+      }
+
+      await this.trySources(candidates, { notifyReady: false, restartRenderer });
       this.seek(previousTime);
 
       if (!wasPaused) {
@@ -571,6 +749,8 @@ class WebGL360PlayerController {
     this.errorState?.destroy();
     this.debugOverlay?.destroy();
     this.pluginControlsRoot?.remove();
+    this.overlayRoot?.remove();
+    this.renderFrameListeners.clear();
     if (this.debugInterval) globalThis.clearInterval(this.debugInterval);
     window.removeEventListener('keydown', this.handleKeydown);
 
@@ -875,8 +1055,9 @@ class WebGL360PlayerController {
       await waitForVideoReady(video);
     };
 
-    const result = this.config.sourceLoader
-      ? await this.config.sourceLoader({
+    const sourceLoader = this.sourceLoaders.get(source.type) ?? this.config.sourceLoader;
+    const result = sourceLoader
+      ? await sourceLoader({
         video,
         source,
         defaultLoad,
@@ -933,8 +1114,7 @@ class WebGL360PlayerController {
     }
 
     this.loader.setState('warming first frame');
-    this.renderer?.destroy();
-    this.controls?.destroy();
+    this.disposeRenderer();
 
     this.renderer = new SceneRenderer(this.container, this.video, {
       fov: this.state.fov,
@@ -942,6 +1122,8 @@ class WebGL360PlayerController {
       pitch: this.state.pitch,
       minFov: this.config.minFov,
       maxFov: this.config.maxFov,
+      projectionMode: this.config.projectionMode,
+      stereoSourceLayout: this.config.stereoSourceLayout,
       debug: this.config.debug,
       onContextLost: () => {
         this.state.diagnostics.contextLostCount++;
@@ -953,8 +1135,9 @@ class WebGL360PlayerController {
         });
         void this.failToFallback('context_lost', new Error('WebGL context lost.'));
       },
-      onFrame: () => {
+      onFrame: (delta) => {
         this.frameCount++;
+        this.emitRenderFrame(delta);
       }
     });
     this.renderer.setColorFilters(this.colorFilters);
@@ -971,6 +1154,13 @@ class WebGL360PlayerController {
         debug: this.config.debug,
       });
     }
+  }
+
+  private disposeRenderer(): void {
+    this.controls?.destroy();
+    this.controls = undefined;
+    this.renderer?.destroy();
+    this.renderer = undefined;
   }
 
   private updateDebug(): void {

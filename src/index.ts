@@ -30,6 +30,8 @@ export type {
   WebGL360DiagnosticEvent,
   WebGL360DiagnosticEventType,
   WebGL360Diagnostics,
+  WebGL360CaptureFrameOptions,
+  WebGL360ExportedConfig,
   WebGL360Fallback,
   WebGL360FallbackContext,
   WebGL360EventHandler,
@@ -43,8 +45,11 @@ export type {
   WebGL360PluginContext,
   WebGL360PluginInstall,
   WebGL360PluginObject,
+  WebGL360ProjectionMode,
   WebGL360Quality,
   WebGL360QualitySwitchResult,
+  WebGL360RendererHandle,
+  WebGL360ScreenPoint,
   WebGL360Source,
   WebGL360SourceSupport,
   WebGL360SourceLoader,
@@ -52,7 +57,9 @@ export type {
   WebGL360SourceLoaderContext,
   WebGL360SourceLoaderResult,
   WebGL360SourceType,
+  WebGL360StereoSourceLayout,
   WebGL360StereoMode,
+  WebGL360View,
 } from './types';
 export { colorGradingPlugin, createColorGradingPlugin } from './plugins/colorGrading';
 export type { ColorGradingPlugin, ColorGradingPluginOptions } from './plugins/colorGrading';
@@ -64,3 +71,16 @@ export { createWatermarkPlugin, watermarkPlugin } from './plugins/watermark';
 export type { WatermarkPlugin, WatermarkPluginOptions, WatermarkPosition } from './plugins/watermark';
 export { createStereoPlugin, stereoPlugin } from './plugins/stereo';
 export type { StereoPlugin, StereoPluginOptions } from './plugins/stereo';
+export { createXRPlugin, xrPlugin } from './plugins/xr';
+export type { XRPlugin, XRPluginOptions } from './plugins/xr';
+export { createHotspotsPlugin, hotspotsPlugin } from './plugins/hotspots';
+export type { HotspotDefinition, HotspotsPlugin, HotspotsPluginOptions } from './plugins/hotspots';
+export { createTimelinePlugin, timelinePlugin } from './plugins/timeline';
+export type {
+  TimelineChapter,
+  TimelineChapterInput,
+  TimelineChapterMap,
+  TimelinePlugin,
+  TimelinePluginOptions,
+} from './plugins/timeline';
+export { defineWebGL360PlayerElement, WebGL360PlayerElement } from './web-component';

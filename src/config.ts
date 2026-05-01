@@ -19,6 +19,8 @@ export function normalizePlayerOptions(options: WebGL360PlayerOptions): Normaliz
     defaultQuality: options.defaultQuality,
     maxQuality: options.maxQuality,
     sourcePreference: normalizeSourcePreference(options.sourcePreference),
+    projectionMode: options.projectionMode ?? '360',
+    stereoSourceLayout: options.stereoSourceLayout ?? 'mono',
     initialYaw: options.initialYaw ?? 0,
     initialPitch: options.initialPitch ?? 0,
     initialFov: clamp(options.initialFov ?? 75, options.minFov ?? 35, options.maxFov ?? 100),

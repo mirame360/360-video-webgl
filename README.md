@@ -27,6 +27,7 @@ The player operates on an **"Inside-Out Sphere"** model:
 - **React Ready**: Includes a first-class React wrapper with declarative props and imperative refs.
 - **Mobile Optimized**: Custom interaction model for mobile browsers, including a pseudo-fullscreen fallback for iOS and motion (gyroscope) controls.
 - **Quality Heuristics**: Automatic resolution selection with hardware-safe ceilings (e.g., 4k limit on mobile to prevent crashes).
+- **Immersive Modes**: Optional split-view stereo rendering and WebXR session support through plugins.
 - **Debug Mode**: Real-time performance overlay showing FPS, bitrate, and camera coordinates.
 
 ## Installation
@@ -104,15 +105,22 @@ player.seek(30);
 player.setYaw(90);
 player.setPitch(10);
 player.setFov(70);
+player.setView({ yaw: 90, pitch: 10, fov: 70 });
+const view = player.getView();
 player.setMuted(true);
 player.setDebug(true);
 await player.setMotionEnabled(true);
 await player.setQuality('4k');
+const saved = player.exportConfig();
+await player.importConfig(saved);
+await player.requestFullscreen();
+await player.exitFullscreen();
+const posterBlob = await player.captureFrame({ type: 'image/jpeg', quality: 0.9 });
 const state = player.getState();
 player.destroy();
 ```
 
-`getState()` returns the active source, supported qualities, source support reasons, detected device capabilities, playback counters, and recent diagnostic events.
+`getState()` returns the active source, supported qualities, source support reasons, detected device capabilities, playback counters, and recent diagnostic events. `exportConfig()` serializes the current presentation state: view, mute/debug/motion flags, stereo mode, color filters, and active quality. It does not serialize media URLs or plugin definitions.
 
 ## Optional Plugins
 
@@ -121,10 +129,13 @@ Plugins are installed through the `plugins` option and can subscribe to runtime 
 ```ts
 import {
   createAnalyticsPlugin,
+  createHotspotsPlugin,
   createStereoPlugin,
   createSubtitlesPlugin,
+  createTimelinePlugin,
   createWatermarkPlugin,
   createWebGL360Player,
+  createXRPlugin,
 } from 'webgl-360-player';
 
 const analytics = createAnalyticsPlugin({
@@ -147,10 +158,30 @@ const watermark = createWatermarkPlugin({
 const stereo = createStereoPlugin({
   controls: true,
 });
+const xr = createXRPlugin({
+  controls: true,
+});
+const hotspots = createHotspotsPlugin({
+  hotspots: [
+    { id: 'door', yaw: 35, pitch: -4, label: 'Door', startTime: 2, endTime: 18 },
+  ],
+});
+const timeline = createTimelinePlugin({
+  chapters: {
+    intro: 0,
+    gallery: { time: 42, label: 'Gallery' },
+    rooftop: { time: 96, label: 'Rooftop' },
+  },
+  onChapterChange(chapter) {
+    console.log('chapter', chapter?.label);
+  },
+});
 
 const player = createWebGL360Player(container, {
   sources: [{ src: 'video_4k.mp4', type: 'mp4', quality: '4k' }],
-  plugins: [analytics, subtitles, watermark, stereo],
+  projectionMode: '360',
+  stereoSourceLayout: 'mono',
+  plugins: [analytics, subtitles, watermark, stereo, xr, hotspots, timeline],
 });
 ```
 
@@ -172,7 +203,90 @@ The subtitles plugin attaches WebVTT tracks to the active video element, renders
 
 The watermark plugin renders a configurable brand badge with optional click URL and powered-by text.
 
-The stereo plugin mounts a `VR` control and asks the renderer to draw a Cardboard-style left/right split view. Full WebXR support can be layered into this plugin later without changing the normal playback path.
+The stereo plugin mounts a `VR` control and asks the renderer to draw a Cardboard-style left/right split view. This is a regular inline canvas mode; it does not start a browser-managed immersive session.
+
+The XR plugin mounts an `Enter VR` control for browsers that support WebXR `immersive-vr`. It looks up the current Three.js renderer when the user clicks, starts an XR session, and switches the button to `Exit VR` until the session ends. Unsupported browsers show a disabled `VR unavailable` control.
+
+The hotspots plugin mounts HTML hotspots on a dedicated overlay layer and positions them from yaw/pitch coordinates. Hotspots can be limited to playback time ranges and can provide custom DOM through a `render()` callback.
+
+The timeline plugin tracks chapter markers from a hashmap keyed by chapter id. Values can be a time in seconds or `{ time, label }`. The first shipped marker type is chapters only; UI can subscribe through `onChapterChange()` or call `seekToChapter(id)`, `nextChapter()`, and `previousChapter()` on the plugin instance.
+
+Plugins can also register source loaders by source type:
+
+```ts
+const hlsPlugin = {
+  id: 'hls-loader',
+  install(context) {
+    return context.registerSourceLoader('hls', async ({ video, source, waitForReady }) => {
+      const hls = new Hls();
+      hls.loadSource(source.src);
+      hls.attachMedia(video);
+      await waitForReady();
+      return () => hls.destroy();
+    });
+  },
+};
+```
+
+Registered loaders are selected before the top-level `sourceLoader` option, which remains available as a fallback for compatibility.
+
+## Theming
+
+Built-in player UI reads CSS custom properties from the container scope:
+
+```css
+.tour-player {
+  --webgl-360-font-family: Inter, system-ui, sans-serif;
+  --webgl-360-accent: #22c55e;
+  --webgl-360-control-bg: rgba(8, 12, 20, 0.72);
+  --webgl-360-control-color: #f8fafc;
+  --webgl-360-control-active-color: #86efac;
+  --webgl-360-control-border: rgba(255, 255, 255, 0.18);
+  --webgl-360-panel-bg: rgba(8, 12, 20, 0.86);
+  --webgl-360-subtitle-bg: rgba(0, 0, 0, 0.68);
+  --webgl-360-subtitle-color: #fff;
+  --webgl-360-hotspot-bg: rgba(8, 12, 20, 0.72);
+  --webgl-360-hotspot-color: #fff;
+}
+```
+
+Additional variables are available for active menu items, subtitles, loaders, spinners, and error states: `--webgl-360-control-active-bg`, `--webgl-360-control-active-fg`, `--webgl-360-subtitle-shadow`, `--webgl-360-loader-bg`, `--webgl-360-spinner-track`, `--webgl-360-spinner-accent`, `--webgl-360-error-bg`, and `--webgl-360-error-color`.
+
+## Web Component
+
+Register the custom element when you want a zero-framework integration:
+
+```ts
+import { defineWebGL360PlayerElement } from 'webgl-360-player';
+
+defineWebGL360PlayerElement();
+```
+
+```html
+<webgl-360-player
+  src="/video_4k.mp4"
+  quality="4k"
+  autoplay
+  muted
+  projection-mode="360"
+  stereo-source-layout="mono"
+></webgl-360-player>
+```
+
+For multiple sources, pass a JSON `sources` attribute or assign `element.options = { sources, plugins }` before connecting the element.
+
+## Advanced Rendering
+
+`projectionMode` controls the projection geometry:
+
+- `360` renders a full equirectangular sphere.
+- `180` renders a half sphere for 180-degree video.
+
+`stereoSourceLayout` controls how the video texture is sampled when stereo rendering is enabled:
+
+- `mono` uses the full video for both eyes.
+- `left-right` samples the left and right halves of the source video.
+- `top-bottom` samples the top and bottom halves of the source video.
 
 ## Configuration Options
 

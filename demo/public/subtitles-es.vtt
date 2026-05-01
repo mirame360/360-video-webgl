@@ -1,0 +1,10 @@
+WEBVTT
+
+00:00:01.000 --> 00:00:05.000
+Plugin de subtítulos WebGL activo.
+
+00:00:06.000 --> 00:00:11.000
+Los subtítulos permanecen en la superposición del reproductor mientras el video 360 se renderiza a través de WebGL.
+
+00:00:12.000 --> 00:00:18.000
+Cambie la calidad, arrastre la escena o active los controles de movimiento; los subtítulos permanecen adjuntos.
