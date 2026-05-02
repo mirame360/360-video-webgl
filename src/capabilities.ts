@@ -180,8 +180,7 @@ function getNavigatorUserAgent(): string {
 
 export function getIPhoneQualityCeiling(): string | undefined {
   if (isIPhone()) {
-    // iPhones generally struggle with 8k, and often have 1080p or 4k caps for HEVC
-    // depending on the generation. v1 ceiling is 4k.
+    // iPhones generally struggle with 8k, but 4k is supported on modern generations.
     return '4k';
   }
   return undefined;
@@ -214,7 +213,8 @@ function getMaxVideoPixels(input: { iphone: boolean; android: boolean; maxTextur
   }
 
   if (input.iphone) {
-    return Math.min(texturePixels, 3840 * 2160);
+    // Increase limit to support 4096x2048 (approx 8.4M pixels)
+    return Math.min(texturePixels, 4096 * 2048);
   }
 
   return texturePixels;

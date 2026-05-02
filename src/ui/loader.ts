@@ -1,5 +1,7 @@
 export interface LoaderHandle {
   setState: (state: string) => void;
+  setVisible: (visible: boolean) => void;
+  setOverlay: (enabled: boolean) => void;
   destroy: () => void;
 }
 
@@ -26,6 +28,16 @@ export function createLoader(container: HTMLElement): LoaderHandle {
     setState(state: string) {
       label.textContent = state;
       root.setAttribute('aria-label', state);
+    },
+    setVisible(visible: boolean) {
+      root.style.display = visible ? 'flex' : 'none';
+    },
+    setOverlay(enabled: boolean) {
+      if (enabled) {
+        root.classList.add('webgl-360-player__loader--overlay');
+      } else {
+        root.classList.remove('webgl-360-player__loader--overlay');
+      }
     },
     destroy() {
       root.remove();
@@ -59,6 +71,11 @@ function ensureStyles(): void {
       z-index: 100;
       pointer-events: none;
       backdrop-filter: blur(4px);
+      transition: background 0.2s ease, backdrop-filter 0.2s ease;
+    }
+    .webgl-360-player__loader--overlay {
+      background: rgba(0, 0, 0, 0.25);
+      backdrop-filter: none;
     }
     .webgl-360-player__spinner {
       width: 48px;

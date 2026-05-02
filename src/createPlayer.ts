@@ -670,7 +670,9 @@ class WebGL360PlayerController {
     const restartRenderer = this.stereoMode.enabled;
 
     this.setMode('loading');
+    this.loader.setOverlay(false);
     this.loader.setState(`switching to ${quality}`);
+    this.loader.setVisible(true);
 
     try {
       if (restartRenderer) {
@@ -811,7 +813,9 @@ class WebGL360PlayerController {
   private async initialize(): Promise<void> {
     try {
       this.setMode('loading');
+      this.loader.setOverlay(false);
       this.loader.setState('preparing player');
+      this.loader.setVisible(true);
       await this.installPlugins();
       track(this.config.analytics, 'webgl_360_player_attempted', {
         defaultQuality: this.config.defaultQuality,
@@ -872,6 +876,7 @@ class WebGL360PlayerController {
       this.state.diagnostics.selectedSource = source;
       this.state.attemptedSources.push(source);
       this.emit('sourcechange', { source, previousSource, state: this.getState() });
+      this.loader.setOverlay(false);
       this.loader.setState(`loading ${source.quality} ${source.type.toUpperCase()}`);
 
       try {
@@ -880,7 +885,7 @@ class WebGL360PlayerController {
           await this.startRenderer();
         }
         this.setMode('ready');
-        this.loader.destroy();
+        this.loader.setVisible(false);
         this.container.dataset.webgl360Mode = 'webgl';
         this.container.dataset.webgl360SourceType = source.type;
         this.container.dataset.webgl360Quality = source.quality;
@@ -937,7 +942,15 @@ class WebGL360PlayerController {
 
     video.addEventListener('playing', () => {
       this.state.isPaused = false;
+      this.loader.setVisible(false);
       if (this.config.debug) console.info('Video: playing');
+    });
+
+    video.addEventListener('waiting', () => {
+      this.loader.setState('buffering');
+      this.loader.setOverlay(true);
+      this.loader.setVisible(true);
+      if (this.config.debug) console.warn('Video: waiting');
     });
 
     video.addEventListener('error', () => {
@@ -1113,6 +1126,7 @@ class WebGL360PlayerController {
       throw new Error('Video element is not available.');
     }
 
+    this.loader.setOverlay(false);
     this.loader.setState('warming first frame');
     this.disposeRenderer();
 
@@ -1287,7 +1301,9 @@ class WebGL360PlayerController {
       error: getErrorMessage(error),
     });
     this.setMode('fallback');
+    this.loader.setOverlay(false);
     this.loader.setState('fallback in progress');
+    this.loader.setVisible(true);
     const errorState = this.getState();
     this.emit('error', { error, state: errorState });
     this.config.onError?.(error, errorState);

@@ -2,6 +2,20 @@
 
 All notable changes to `webgl-360-player` are documented here.
 
+## 0.1.3 - 2026-05-01
+
+- Expanded 4K support on iPhone by increasing the conservative pixel limit to 4096x2048.
+
+## 0.1.2 - 2026-05-01
+
+- Added buffering indicator when video stalls due to slow network.
+- Improved loader persistence and visibility management.
+
+## 0.1.1 - 2026-05-01
+
+- Updated WebGL player with latest plugin changes.
+- Built new standalone UMD bundle for mirame360.
+
 ## 0.1.0 - Unreleased
 
 - Added framework-agnostic WebGL equirectangular 360 video playback.
