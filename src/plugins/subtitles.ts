@@ -284,7 +284,7 @@ function applyOverlayStyles(overlay: HTMLDivElement): void {
   overlay.style.position = 'absolute';
   overlay.style.left = '50%';
   overlay.style.right = 'auto';
-  overlay.style.bottom = 'calc(72px + env(safe-area-inset-bottom))';
+  overlay.style.bottom = 'var(--webgl-360-subtitle-bottom, calc(72px + env(safe-area-inset-bottom)))';
   overlay.style.transform = 'translateX(-50%)';
   overlay.style.zIndex = '120';
   overlay.style.display = 'grid';
@@ -315,12 +315,9 @@ function applyControlRootStyles(root: HTMLDivElement): void {
 }
 
 function applyControlButtonStyles(button: HTMLButtonElement): void {
-  button.style.width = '38px';
-  button.style.height = '34px';
-  button.style.border = '1px solid var(--webgl-360-control-border, rgba(255, 255, 255, 0.16))';
-  button.style.borderRadius = '8px';
-  button.style.background = 'var(--webgl-360-control-bg, rgba(0, 0, 0, 0.62))';
-  button.style.backdropFilter = 'blur(8px)';
+  button.style.border = 'none';
+  button.style.background = 'transparent';
+  button.style.color = 'inherit';
   button.style.font = '700 12px/1 var(--webgl-360-font-family, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif)';
   button.style.letterSpacing = '0';
   button.style.cursor = 'pointer';

@@ -373,7 +373,11 @@ class WebGL360PlayerController {
     };
   }
 
-  private getPluginControlsRoot(): HTMLDivElement {
+  private getPluginControlsRoot(): HTMLElement {
+    if (this.config.controlsContainer) {
+      return this.config.controlsContainer;
+    }
+
     if (this.pluginControlsRoot) {
       return this.pluginControlsRoot;
     }
@@ -382,15 +386,13 @@ class WebGL360PlayerController {
     root.className = 'webgl-360-plugin-controls';
     root.style.position = 'absolute';
     root.style.top = '16px';
-    root.style.left = '50%';
-    root.style.transform = 'translateX(-50%)';
+    root.style.right = '16px';
     root.style.zIndex = '140';
     root.style.display = 'flex';
-    root.style.alignItems = 'center';
-    root.style.justifyContent = 'center';
+    root.style.flexDirection = 'column';
+    root.style.alignItems = 'flex-end';
     root.style.gap = '8px';
     root.style.pointerEvents = 'auto';
-    root.style.maxWidth = 'calc(100% - 32px)';
 
     this.container.appendChild(root);
     this.pluginControlsRoot = root;

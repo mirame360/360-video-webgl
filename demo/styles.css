@@ -134,18 +134,19 @@ h1 {
 
 .ui-top-left {
   position: absolute;
-  top: 20px;
-  left: 20px;
+  top: 16px;
+  left: 16px;
   pointer-events: auto;
+  z-index: 20;
 }
 
 .brand-badge {
   background: rgba(0, 0, 0, 0.6);
   color: rgba(255, 255, 255, 0.9);
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 10px;
-  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 800;
   letter-spacing: 0.05em;
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -154,33 +155,25 @@ h1 {
 
 .ui-top-right {
   position: absolute;
-  top: 20px;
-  right: 20px;
+  top: 16px;
+  right: 16px;
   display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
   pointer-events: auto;
-  max-width: calc(100% - 120px);
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  z-index: 20;
 }
 
 .quality-wrapper {
   display: flex;
   align-items: center;
-  gap: 6px;
   background: rgba(0, 0, 0, 0.6);
-  padding: 5px 10px;
+  padding: 0 4px;
   border-radius: 8px;
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.quality-wrapper span {
-  font-size: 11px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.6);
+  height: 34px;
 }
 
 .ui-select {
@@ -188,15 +181,17 @@ h1 {
   background: transparent;
   color: #fff;
   border: none;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 700;
   cursor: pointer;
-  padding-right: 14px;
+  padding: 0 20px 0 8px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='white' viewBox='0 0 16 16'%3E%3Cpath d='M4 6h8l-4 5z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right center;
+  background-position: calc(100% - 4px) center;
   outline: none;
   font-family: inherit;
+  height: 100%;
+  text-transform: uppercase;
 }
 
 .zoom-pill {
@@ -304,6 +299,41 @@ h1 {
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   min-width: 40px;
+}
+
+.ui-plugin-btns {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.ui-plugin-btns button {
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  height: 34px;
+  width: 38px;
+  display: grid;
+  place-items: center;
+  transition: all 0.1s;
+  backdrop-filter: blur(8px);
+  text-transform: uppercase;
+}
+
+.ui-plugin-btns button[class*="xr-control"] {
+  width: auto;
+  padding: 0 12px;
+}
+
+.ui-plugin-btns button:hover {
+  background: rgba(0, 0, 0, 0.8);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 /* Pseudo-fullscreen */
@@ -561,29 +591,69 @@ pre {
   }
 
   .ui-top-right {
-    top: 12px;
-    right: 12px;
-    gap: 4px;
+    top: 8px;
+    right: 8px;
+    gap: 6px;
+    max-width: calc(100% - 16px);
+    flex-wrap: wrap;
   }
 
   .ui-top-left {
-    top: 12px;
-    left: 12px;
+    top: auto;
+    bottom: 80px; /* Position badge above bottom bar on mobile */
+    left: 8px;
+    z-index: 30;
   }
 
   .brand-badge {
-    padding: 4px 8px;
-    font-size: 8px;
+    padding: 6px 10px;
+    font-size: 9px;
   }
 
   .quality-wrapper, .zoom-pill, .motion-pill {
-    transform: scale(0.9);
-    transform-origin: right top;
+    transform: none;
+  }
+
+  .quality-wrapper {
+    padding: 4px 8px;
+  }
+
+  .zoom-pill {
+    padding: 2px;
+  }
+
+  .motion-pill, .zoom-pill button {
+    width: 32px;
+    height: 32px;
   }
 
   .ui-bottom-bar {
-    padding: 24px 12px calc(12px + env(safe-area-inset-bottom));
-    gap: 8px;
+    padding: 16px 8px calc(8px + env(safe-area-inset-bottom));
+    gap: 4px;
+  }
+
+  .ui-icon-btn {
+    padding: 4px;
+  }
+
+  .viewer-container {
+    --webgl-360-watermark-padding: 4px 10px;
+    --webgl-360-subtitle-bottom: 84px;
+  }
+
+  .ui-plugin-btns {
+    gap: 4px;
+  }
+
+  .ui-plugin-btns button {
+    height: 22px;
+    padding: 2px 6px;
+    font-size: 9px;
+  }
+
+  /* Ensure detecting support option is hidden if it exists */
+  #ui-quality option[value=""] {
+    display: none;
   }
 
   .color-grid {

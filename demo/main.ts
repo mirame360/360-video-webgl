@@ -47,7 +47,6 @@ const btnZoomIn = document.querySelector<HTMLButtonElement>('#ui-zoom-in');
 const btnZoomOut = document.querySelector<HTMLButtonElement>('#ui-zoom-out');
 const zoomLevelDisplay = document.querySelector<HTMLElement>('#ui-zoom-level');
 const btnMotion = document.querySelector<HTMLButtonElement>('#ui-motion');
-const btnDebug = document.querySelector<HTMLButtonElement>('#ui-debug');
 const btnFullscreen = document.querySelector<HTMLButtonElement>('#ui-fullscreen');
 const btnResetColor = document.querySelector<HTMLButtonElement>('#color-reset');
 const colorFilterInputs = Array.from(document.querySelectorAll<HTMLInputElement>('[data-color-filter]'));
@@ -208,10 +207,6 @@ function updateUI() {
       btnMotion.style.color = state.isMotionEnabled ? '#4ade80' : '#fff';
     }
 
-    if (btnDebug) {
-      btnDebug.style.color = state.isDebug ? '#4ade80' : '#fff';
-    }
-
     if (btnApiStereoToggle) {
       btnApiStereoToggle.style.color = state.isStereoEnabled ? '#4ade80' : '#fff';
     }
@@ -269,11 +264,6 @@ btnMotion?.addEventListener('click', () => {
   }).catch(err => {
     console.error('Motion toggle failed', err);
   });
-});
-
-btnDebug?.addEventListener('click', () => {
-  if (!player) return;
-  player.setDebug(!player.getState().isDebug);
 });
 
 // Watermark API Demo
@@ -401,6 +391,18 @@ function loadPlayer(targetQuality?: string) {
 
   const defaultQual = targetQuality || '4k';
   
+  if (uiQualitySelect) {
+    const qualities = Array.from(new Set(DEMO_CONFIG.sources.map(s => s.quality)));
+    uiQualitySelect.innerHTML = '';
+    for (const quality of qualities) {
+      const option = document.createElement('option');
+      option.value = quality;
+      option.textContent = quality;
+      uiQualitySelect.appendChild(option);
+    }
+    uiQualitySelect.value = defaultQual;
+  }
+
   // If we were already playing, the new player should autoplay to maintain continuity.
   // If we never started, it stays stopped.
   const shouldAutoplay = prevState ? !prevState.isPaused : false;
@@ -411,6 +413,7 @@ function loadPlayer(targetQuality?: string) {
   player = createWebGL360Player(viewer, {
     sources,
     plugins: [colorGrading, analytics, subtitles, watermark, stereo, xr],
+    controlsContainer: document.querySelector<HTMLElement>('#ui-plugins') || undefined,
     loop: DEMO_CONFIG.loop,
     preSources: skipIntro ? [] : [
       { src: 'example_720p.mp4', type: 'mp4', quality: '720p' }
@@ -442,6 +445,7 @@ function loadPlayer(targetQuality?: string) {
     onReady(state) {
       writeEvent('webgl_360_player_ready', state);
       uiContainer?.classList.remove('hidden');
+      uiContainer?.classList.remove('ui-hidden');
 
       // Auto-hide UI logic
       const showUI = () => {
@@ -449,7 +453,7 @@ function loadPlayer(targetQuality?: string) {
         if (uiHideTimer) window.clearTimeout(uiHideTimer);
         
         const playerState = player?.getState();
-        // Only start timer if autoHide is enabled and video is playing
+        // Only start timer if video is playing
         if (!playerState?.isPaused) {
           uiHideTimer = window.setTimeout(() => {
             uiContainer?.classList.add('ui-hidden');
@@ -458,8 +462,8 @@ function loadPlayer(targetQuality?: string) {
       };
 
       // Show UI on any interaction
-      viewer.addEventListener('pointermove', showUI);
-      viewer.addEventListener('pointerdown', showUI);
+      viewer?.addEventListener('pointermove', showUI);
+      viewer?.addEventListener('pointerdown', showUI);
       uiContainer?.addEventListener('pointermove', showUI);
       
       // Initial show
@@ -476,25 +480,15 @@ function loadPlayer(targetQuality?: string) {
       }
 
       if (uiQualitySelect) {
-        const currentOptions = Array.from(uiQualitySelect.options).map(o => o.value).join(',');
-        const qualities = Array.from(new Set(DEMO_CONFIG.sources.map(s => s.quality)));
         const availableQualities = new Set(state.availableQualities);
-        const supportByQuality = new Map(state.sourceSupport.map((support) => [support.source.quality, support]));
         
-        if (currentOptions !== qualities.join(',')) {
-          uiQualitySelect.innerHTML = '';
-          for (const quality of qualities) {
-            const option = document.createElement('option');
-            option.value = quality;
-            option.textContent = quality;
-            uiQualitySelect.appendChild(option);
-          }
-        }
-
-        for (const option of Array.from(uiQualitySelect.options)) {
-          const support = supportByQuality.get(option.value);
-          option.disabled = !availableQualities.has(option.value);
-          option.title = support && !support.supported && support.reason ? support.reason : '';
+        // Rebuild the dropdown to only include supported qualities
+        uiQualitySelect.innerHTML = '';
+        for (const quality of state.availableQualities) {
+          const option = document.createElement('option');
+          option.value = quality;
+          option.textContent = quality;
+          uiQualitySelect.appendChild(option);
         }
         
         if (state.selectedSource) {

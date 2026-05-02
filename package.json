@@ -1,6 +1,6 @@
 {
   "name": "webgl-360-player",
-  "version": "0.1.3",
+  "version": "0.1.6",
   "description": "Framework-agnostic WebGL 360 video player with configurable HLS and MP4 source selection.",
   "type": "module",
   "license": "MIT",

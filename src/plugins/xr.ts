@@ -40,8 +40,14 @@ export function createXRPlugin(options: XRPluginOptions = {}): XRPlugin {
       return;
     }
 
-    button.textContent = currentSession ? activeLabel : supported === false ? unavailableLabel : inactiveLabel;
-    button.disabled = supported === false;
+    if (supported === false) {
+      button.style.display = 'none';
+      return;
+    }
+
+    button.style.display = '';
+    button.textContent = currentSession ? activeLabel : inactiveLabel;
+    button.disabled = false;
     button.dataset.active = currentSession ? 'true' : 'false';
     button.style.color = currentSession
       ? 'var(--webgl-360-control-active-color, #4ade80)'
@@ -188,15 +194,13 @@ export function createXRPlugin(options: XRPluginOptions = {}): XRPlugin {
 }
 
 function applyXRButtonStyles(button: HTMLButtonElement): void {
-  button.style.height = '34px';
-  button.style.border = '1px solid var(--webgl-360-control-border, rgba(255, 255, 255, 0.16))';
-  button.style.borderRadius = '8px';
-  button.style.background = 'var(--webgl-360-control-bg, rgba(0, 0, 0, 0.62))';
-  button.style.backdropFilter = 'blur(8px)';
+  button.style.border = 'none';
+  button.style.background = 'transparent';
+  button.style.color = 'inherit';
   button.style.font = '700 12px/1 var(--webgl-360-font-family, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif)';
   button.style.letterSpacing = '0';
   button.style.cursor = 'pointer';
-  button.style.padding = '0 12px';
+  button.style.padding = '0 8px';
 }
 
 export const xrPlugin = createXRPlugin;

@@ -2,6 +2,22 @@
 
 All notable changes to `webgl-360-player` are documented here.
 
+## 0.1.6 - 2026-05-02
+
+- Redesigned plugin control system: removed intrusive floating overlay in favor of a customizable `controlsContainer` for toolbar integration.
+- Simplified plugin button styling to match host application toolbars.
+- Improved subtitle positioning on mobile.
+
+## 0.1.5 - 2026-05-02
+
+- Fixed cramped and overlapping plugin controls on small mobile screens.
+- Improved watermark and control spacing for better touch usability.
+
+## 0.1.4 - 2026-05-01
+
+- Improved quality selection UI persistence and visibility in the demo.
+- Fixed an issue where the quality dropdown could disappear during initial loading stages.
+
 ## 0.1.3 - 2026-05-01
 
 - Expanded 4K support on iPhone by increasing the conservative pixel limit to 4096x2048.

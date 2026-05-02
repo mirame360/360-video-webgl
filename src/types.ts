@@ -251,6 +251,7 @@ export interface WebGL360PlayerOptions {
   analytics?: WebGL360Analytics;
   fallback?: WebGL360Fallback;
   sourceLoader?: WebGL360SourceLoader;
+  controlsContainer?: HTMLElement;
   plugins?: WebGL360Plugin[];
   requiredPlugins?: string[];
   onReady?: (state: WebGL360PlayerState) => void;
@@ -299,6 +300,7 @@ export interface NormalizedWebGL360PlayerOptions extends Required<
   analytics?: WebGL360Analytics;
   fallback?: WebGL360Fallback;
   sourceLoader?: WebGL360SourceLoader;
+  controlsContainer?: HTMLElement;
   plugins: WebGL360Plugin[];
   requiredPlugins: string[];
   onReady?: (state: WebGL360PlayerState) => void;

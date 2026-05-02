@@ -109,7 +109,7 @@ function applyWatermarkStyles(element: HTMLElement, position: WatermarkPosition)
   element.style.display = 'inline-flex';
   element.style.alignItems = 'center';
   element.style.maxWidth = 'min(70%, 360px)';
-  element.style.padding = '7px 12px';
+  element.style.padding = 'var(--webgl-360-watermark-padding, 7px 12px)';
   element.style.border = '1px solid var(--webgl-360-control-border, rgba(255, 255, 255, 0.16))';
   element.style.borderRadius = '999px';
   element.style.background = 'var(--webgl-360-control-bg, rgba(0, 0, 0, 0.58))';

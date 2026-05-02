@@ -40,6 +40,7 @@ export function normalizePlayerOptions(options: WebGL360PlayerOptions): Normaliz
     analytics: options.analytics,
     fallback: options.fallback,
     sourceLoader: options.sourceLoader,
+    controlsContainer: options.controlsContainer,
     plugins: options.plugins ?? [],
     requiredPlugins: options.requiredPlugins ?? [],
     onReady: options.onReady,
