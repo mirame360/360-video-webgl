@@ -2,6 +2,10 @@
 
 All notable changes to `webgl-360-player` are documented here.
 
+## 0.1.7 - 2026-05-17
+
+- Added a built-in zoom control plugin so hosts can reuse player-owned zoom UI instead of duplicating it.
+
 ## 0.1.6 - 2026-05-02
 
 - Redesigned plugin control system: removed intrusive floating overlay in favor of a customizable `controlsContainer` for toolbar integration.

@@ -71,6 +71,8 @@ export { createWatermarkPlugin, watermarkPlugin } from './plugins/watermark';
 export type { WatermarkPlugin, WatermarkPluginOptions, WatermarkPosition } from './plugins/watermark';
 export { createStereoPlugin, stereoPlugin } from './plugins/stereo';
 export type { StereoPlugin, StereoPluginOptions } from './plugins/stereo';
+export { createZoomPlugin, zoomPlugin } from './plugins/zoom';
+export type { ZoomPlugin, ZoomPluginOptions } from './plugins/zoom';
 export { createXRPlugin, xrPlugin } from './plugins/xr';
 export type { XRPlugin, XRPluginOptions } from './plugins/xr';
 export { createHotspotsPlugin, hotspotsPlugin } from './plugins/hotspots';

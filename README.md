@@ -136,6 +136,7 @@ import {
   createWatermarkPlugin,
   createWebGL360Player,
   createXRPlugin,
+  createZoomPlugin,
 } from 'webgl-360-player';
 
 const analytics = createAnalyticsPlugin({
@@ -158,6 +159,7 @@ const watermark = createWatermarkPlugin({
 const stereo = createStereoPlugin({
   controls: true,
 });
+const zoom = createZoomPlugin();
 const xr = createXRPlugin({
   controls: true,
 });
@@ -181,7 +183,7 @@ const player = createWebGL360Player(container, {
   sources: [{ src: 'video_4k.mp4', type: 'mp4', quality: '4k' }],
   projectionMode: '360',
   stereoSourceLayout: 'mono',
-  plugins: [analytics, subtitles, watermark, stereo, xr, hotspots, timeline],
+  plugins: [analytics, subtitles, watermark, stereo, zoom, xr, hotspots, timeline],
 });
 ```
 
