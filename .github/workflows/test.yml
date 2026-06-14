@@ -34,7 +34,7 @@ jobs:
       - name: Distribution tests
         run: npm run build && npm run test:dist
       - name: Cross-browser tests
-        run: npm run test:e2e
+        run: xvfb-run --auto-servernum npm run test:e2e
       - name: Upload Playwright report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
