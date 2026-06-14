@@ -5,7 +5,7 @@ import type { WebGL360PluginContext, WebGL360PlayerState } from '../types';
 describe('zoom plugin', () => {
   it('mounts zoom controls and updates the player fov', async () => {
     const state = { fov: 75 } as WebGL360PlayerState;
-    const handlers = new Map<string, Function>();
+    const handlers = new Map<string, () => void>();
     const mounted: HTMLElement[] = [];
     const setFov = vi.fn((fov: number) => {
       state.fov = fov;
@@ -13,7 +13,7 @@ describe('zoom plugin', () => {
     const context = {
       player: { setFov },
       getState: () => state,
-      on: vi.fn((event: string, handler: Function) => handlers.set(event, handler)),
+      on: vi.fn((event: string, handler: () => void) => handlers.set(event, handler)),
       off: vi.fn(),
       mountControl: vi.fn((element: HTMLElement) => {
         mounted.push(element);

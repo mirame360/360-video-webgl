@@ -17,10 +17,15 @@ import {
 
 const viewer = document.querySelector<HTMLElement>('#viewer');
 const eventLog = document.querySelector<HTMLPreElement>('#event-log');
+const isE2E = new URLSearchParams(window.location.search).has('e2e');
+const e2eSources: WebGL360Source[] = [
+  { src: 'example_720p.mp4', type: 'mp4', quality: '1080p', width: 1920, height: 960, mimeType: 'video/mp4' },
+  { src: 'example_720p.mp4', type: 'mp4', quality: '720p', width: 1280, height: 640, mimeType: 'video/mp4' },
+];
 const DEMO_CONFIG = {
   brandText: '',
   loop: true,
-  sources: [
+  sources: isE2E ? e2eSources : [
     {
       src: 'https://stream-akamai.castr.com/5b9352dbda7b8c769937e459/live_2361c920455111ea85db6911fe397b9e/index.fmp4.m3u8',
       type: 'hls',
@@ -389,7 +394,7 @@ function loadPlayer(targetQuality?: string) {
     console.warn('WebGL360Player: Motion controls usually require a Secure Context (HTTPS). This site is currently using an insecure connection.');
   }
 
-  const defaultQual = targetQuality || '4k';
+  const defaultQual = targetQuality || (isE2E ? '1080p' : '4k');
   
   if (uiQualitySelect) {
     const qualities = Array.from(new Set(DEMO_CONFIG.sources.map(s => s.quality)));
@@ -415,10 +420,10 @@ function loadPlayer(targetQuality?: string) {
     plugins: [colorGrading, analytics, subtitles, watermark, stereo, xr],
     controlsContainer: document.querySelector<HTMLElement>('#ui-plugins') || undefined,
     loop: DEMO_CONFIG.loop,
-    preSources: skipIntro ? [] : [
+    preSources: isE2E || skipIntro ? [] : [
       { src: 'example_720p.mp4', type: 'mp4', quality: '720p' }
     ],
-    postSources: [
+    postSources: isE2E ? [] : [
        { src: 'example_720p.mp4', type: 'mp4', quality: '720p' }
     ],
     defaultQuality: defaultQual,
@@ -480,8 +485,6 @@ function loadPlayer(targetQuality?: string) {
       }
 
       if (uiQualitySelect) {
-        const availableQualities = new Set(state.availableQualities);
-        
         // Rebuild the dropdown to only include supported qualities
         uiQualitySelect.innerHTML = '';
         for (const quality of state.availableQualities) {
@@ -570,6 +573,13 @@ queueMicrotask(() => {
   syncColorControls();
   loadPlayer();
 });
+
+if (import.meta.env.DEV) {
+  Object.defineProperty(window, '__webgl360Player', {
+    configurable: true,
+    get: () => player,
+  });
+}
 
 window.addEventListener('pagehide', () => {
   player?.destroy();

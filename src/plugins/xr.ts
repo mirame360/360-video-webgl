@@ -41,7 +41,11 @@ export function createXRPlugin(options: XRPluginOptions = {}): XRPlugin {
     }
 
     if (supported === false) {
-      button.style.display = 'none';
+      button.style.display = '';
+      button.textContent = unavailableLabel;
+      button.disabled = true;
+      button.dataset.active = 'false';
+      button.setAttribute('aria-pressed', 'false');
       return;
     }
 

@@ -4,12 +4,12 @@ import tseslint from 'typescript-eslint';
 
 export default [
   {
-    ignores: ['dist/**', 'dist-demo/**', 'docs/assets/**', 'node_modules/**', 'coverage/**'],
+    ignores: ['dist/**', 'dist-demo/**', 'docs/assets/**', 'node_modules/**', 'coverage/**', 'playwright-report/**', 'test-results/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ['src/**/*.ts', 'demo/**/*.ts', '*.config.ts'],
+    files: ['src/**/*.ts', 'demo/**/*.ts', 'e2e/**/*.ts', '*.config.ts'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',

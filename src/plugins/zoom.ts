@@ -5,7 +5,7 @@ export interface ZoomPluginOptions {
   className?: string;
 }
 
-export interface ZoomPlugin extends WebGL360PluginObject {}
+export type ZoomPlugin = WebGL360PluginObject;
 
 const ROOT_CLASS = 'webgl-360-zoom-control';
 
