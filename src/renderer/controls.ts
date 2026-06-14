@@ -25,6 +25,12 @@ export function getDragPoseDelta(
   };
 }
 
+export function isInteractiveControlTarget(target: EventTarget | null): boolean {
+  return target instanceof Element && Boolean(target.closest(
+    'a, button, input, select, textarea, [contenteditable="true"], [role="button"], [role="menuitem"], [role="menuitemradio"]',
+  ));
+}
+
 export function createPointerControls(container: HTMLElement, target: ControlsTarget): ControlsHandle {
   const activePointers = new Map<number, { x: number; y: number }>();
   let lastX = 0;
@@ -44,6 +50,10 @@ export function createPointerControls(container: HTMLElement, target: ControlsTa
   };
 
   const handlePointerDown = (event: PointerEvent): void => {
+    if (isInteractiveControlTarget(event.target)) {
+      return;
+    }
+
     activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     
     if (activePointers.size === 1) {
@@ -107,6 +117,10 @@ export function createPointerControls(container: HTMLElement, target: ControlsTa
   };
 
   const handleWheel = (event: WheelEvent): void => {
+    if (isInteractiveControlTarget(event.target)) {
+      return;
+    }
+
     event.preventDefault();
     const state = target.getState();
     target.setFov(state.fov + Math.sign(event.deltaY) * 4);

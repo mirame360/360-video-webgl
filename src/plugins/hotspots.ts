@@ -129,11 +129,11 @@ export function createHotspotsPlugin(options: HotspotsPluginOptions): HotspotsPl
     }
 
     const element = createHotspotElement(hotspot);
-    let handleClick: ((event: MouseEvent) => void) | undefined;
-    if (hotspot.onClick) {
-      handleClick = (event) => hotspot.onClick?.(hotspot, event);
-      element.addEventListener('click', handleClick);
-    }
+    const handleClick = (event: MouseEvent): void => {
+      event.stopPropagation();
+      hotspot.onClick?.(hotspot, event);
+    };
+    element.addEventListener('click', handleClick);
     root?.appendChild(element);
 
     const mountedHotspot = { hotspot, element, handleClick };

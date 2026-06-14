@@ -3,8 +3,10 @@ import Hls from 'hls.js';
 import {
   createAnalyticsPlugin,
   createColorGradingPlugin,
+  createHotspotsPlugin,
   createStereoPlugin,
   createSubtitlesPlugin,
+  createTimelinePlugin,
   createWatermarkPlugin,
   createXRPlugin,
   createWebGL360Player,
@@ -70,6 +72,7 @@ const apiSubTrackSelect = document.querySelector<HTMLSelectElement>('#api-sub-tr
 let player: WebGL360Player | undefined;
 let lastStateJson = '';
 let hasStartedPlaying = false;
+let hotspotClickCount = 0;
 let uiHideTimer: number | undefined;
 const colorGrading = createColorGradingPlugin();
 const analytics = createAnalyticsPlugin({
@@ -106,6 +109,28 @@ const stereo = createStereoPlugin({
   requestFullscreen: false,
 });
 const xr = createXRPlugin();
+const hotspots = createHotspotsPlugin({
+  hotspots: [{
+    id: 'center',
+    yaw: 0,
+    pitch: 0,
+    label: 'Center hotspot',
+    onClick(hotspot) {
+      hotspotClickCount += 1;
+      writeEvent('hotspot_clicked', { id: hotspot.id });
+    },
+  }],
+});
+const timeline = createTimelinePlugin({
+  chapters: {
+    intro: { time: 0, label: 'Intro' },
+    middle: { time: 1, label: 'Middle' },
+    end: { time: 2, label: 'End' },
+  },
+  onChapterChange(chapter) {
+    writeEvent('chapter_changed', chapter);
+  },
+});
 
 function formatFilterValue(filter: keyof WebGL360ColorFilters, value: number): string {
   if (filter === 'contrast' || filter === 'saturation') {
@@ -321,15 +346,31 @@ const syncFullscreenUI = () => {
 };
 
 const toggleFullscreen = () => {
-  const container = document.querySelector('#viewer-container');
+  const container = document.querySelector<HTMLElement>('#viewer-container');
   if (!container || !player) return;
 
   const isFullscreen = !!document.fullscreenElement || container.classList.contains('is-pseudo-fullscreen');
 
   if (!isFullscreen) {
-    player.requestFullscreen().then(() => syncFullscreenUI());
+    const requestFullscreen = container.requestFullscreen
+      ?? (container as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen;
+    if (requestFullscreen) {
+      requestFullscreen.call(container)
+        .catch(() => container.classList.add('is-pseudo-fullscreen'))
+        .finally(syncFullscreenUI);
+    } else {
+      container.classList.add('is-pseudo-fullscreen');
+      syncFullscreenUI();
+    }
   } else {
-    player.exitFullscreen().then(() => syncFullscreenUI());
+    const exitFullscreen = document.exitFullscreen
+      ?? (document as Document & { webkitExitFullscreen?: () => Promise<void> }).webkitExitFullscreen;
+    if (document.fullscreenElement && exitFullscreen) {
+      exitFullscreen.call(document).finally(syncFullscreenUI);
+    } else {
+      container.classList.remove('is-pseudo-fullscreen');
+      syncFullscreenUI();
+    }
   }
 };
 
@@ -417,7 +458,7 @@ function loadPlayer(targetQuality?: string) {
 
   player = createWebGL360Player(viewer, {
     sources,
-    plugins: [colorGrading, analytics, subtitles, watermark, stereo, xr],
+    plugins: [colorGrading, analytics, subtitles, watermark, stereo, xr, hotspots, timeline],
     controlsContainer: document.querySelector<HTMLElement>('#ui-plugins') || undefined,
     loop: DEMO_CONFIG.loop,
     preSources: isE2E || skipIntro ? [] : [
@@ -578,6 +619,20 @@ if (import.meta.env.DEV) {
   Object.defineProperty(window, '__webgl360Player', {
     configurable: true,
     get: () => player,
+  });
+  Object.defineProperty(window, '__webgl360Demo', {
+    configurable: true,
+    value: {
+      analytics,
+      colorGrading,
+      getHotspotClickCount: () => hotspotClickCount,
+      hotspots,
+      stereo,
+      subtitles,
+      timeline,
+      watermark,
+      xr,
+    },
   });
 }
 

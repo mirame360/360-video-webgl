@@ -38,6 +38,15 @@ export default defineConfig({
       },
     },
     {
+      name: 'edge',
+      use: {
+        ...devices['Desktop Edge'],
+        launchOptions: {
+          args: ['--use-angle=swiftshader'],
+        },
+      },
+    },
+    {
       name: 'firefox',
       use: {
         ...devices['Desktop Firefox'],
@@ -49,12 +58,24 @@ export default defineConfig({
       use: { ...devices['Desktop Safari'] },
     },
     {
-      name: 'mobile-chrome',
+      name: 'android-pixel',
       use: { ...devices['Pixel 7'] },
     },
     {
-      name: 'mobile-safari',
+      name: 'android-galaxy',
+      use: { ...devices['Galaxy S24'] },
+    },
+    {
+      name: 'ios-iphone',
       use: { ...devices['iPhone 15'] },
+    },
+    {
+      name: 'ios-small',
+      use: { ...devices['iPhone SE (3rd gen)'] },
+    },
+    {
+      name: 'ios-tablet',
+      use: { ...devices['iPad Pro 11'] },
     },
   ],
 });

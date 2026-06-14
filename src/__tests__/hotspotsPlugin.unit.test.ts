@@ -14,6 +14,8 @@ describe('createHotspotsPlugin', () => {
     const renderFrameCallbacks: Array<(delta: number) => void> = [];
     const state = createState({ currentTime: 4 });
     const handleClick = vi.fn();
+    const handleContainerClick = vi.fn();
+    overlayRoot.addEventListener('click', handleContainerClick);
     const context = createContext({
       container,
       overlayRoot,
@@ -45,6 +47,7 @@ describe('createHotspotsPlugin', () => {
 
     intro?.click();
     expect(handleClick).toHaveBeenCalledWith(expect.objectContaining({ id: 'intro' }), expect.any(MouseEvent));
+    expect(handleContainerClick).not.toHaveBeenCalled();
 
     if (typeof cleanup === 'function') {
       cleanup();
