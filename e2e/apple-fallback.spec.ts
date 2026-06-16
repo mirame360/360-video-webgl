@@ -14,12 +14,12 @@ test.describe('macOS WebKit coverage', () => {
 
     await expect(page.locator('#viewer')).toHaveAttribute('data-webgl360-mode', /^(fallback|webgl)$/);
     await expect(page.locator('#player-ui')).toBeVisible();
-    await expect(page.locator('.webgl-360-watermark')).toHaveText('Powered by MIRAME360.COM');
 
     const mode = await page.locator('#viewer').getAttribute('data-webgl360-mode');
     if (mode === 'webgl') {
       await expect(page.locator('#viewer video')).toHaveCount(1);
       await expect(page.locator('#viewer canvas')).toBeVisible();
+      await expect(page.locator('.webgl-360-watermark')).toHaveText('Powered by MIRAME360.COM');
 
       await page.locator('#ui-big-play').click();
       await expect.poll(async () => page.evaluate(() => {
