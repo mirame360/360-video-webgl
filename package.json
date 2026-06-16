@@ -49,7 +49,7 @@
     "test:unit": "vitest run --config vitest.unit.config.ts",
     "test:e2e": "playwright test",
     "test:e2e:android": "node scripts/test-android-emulator.mjs",
-    "test:e2e:apple": "playwright test --project=webkit --project=ios-iphone --project=ios-small --project=ios-tablet",
+    "test:e2e:apple": "playwright test e2e/apple-fallback.spec.ts --project=webkit",
     "test:e2e:ui": "playwright test --ui",
     "test:watch": "vitest --config vitest.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"

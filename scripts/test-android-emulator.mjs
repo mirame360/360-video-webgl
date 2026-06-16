@@ -15,6 +15,15 @@ function adb(...args) {
   return execFileSync('adb', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 }
 
+function tryAdb(...args) {
+  try {
+    return adb(...args);
+  } catch (error) {
+    console.warn(`adb ${args.join(' ')} failed:`, error.stderr?.toString() || error.message);
+    return '';
+  }
+}
+
 async function waitForUrl(url, timeoutMs = 120_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -29,6 +38,15 @@ async function waitForUrl(url, timeoutMs = 120_000) {
   throw new Error(`Timed out waiting for ${url}`);
 }
 
+async function stopServer() {
+  if (!server || server.exitCode !== null) return;
+  server.kill('SIGTERM');
+  await Promise.race([
+    new Promise((resolve) => server?.once('exit', resolve)),
+    delay(5_000).then(() => server?.kill('SIGKILL')),
+  ]);
+}
+
 async function run() {
   mkdirSync(resultsDir, { recursive: true });
   server = spawn('npm', ['run', 'demo', '--', '--host', '0.0.0.0', '--port', String(port), '--strictPort'], {
@@ -39,8 +57,14 @@ async function run() {
   await waitForUrl(hostUrl);
   adb('wait-for-device');
   adb('reverse', `tcp:${port}`, `tcp:${port}`);
-  adb('forward', 'tcp:9222', 'localabstract:chrome_devtools_remote');
-  adb('shell', 'am', 'force-stop', 'com.android.chrome');
+  tryAdb('shell', 'am', 'force-stop', 'com.android.chrome');
+  tryAdb('shell', 'pm', 'clear', 'com.android.chrome');
+  adb(
+    'shell',
+    'sh',
+    '-c',
+    'echo "chrome --disable-fre --no-default-browser-check --no-first-run --remote-debugging-port=9222" > /data/local/tmp/chrome-command-line',
+  );
   adb(
     'shell',
     'am',
@@ -53,8 +77,9 @@ async function run() {
     '-d',
     demoUrl,
   );
+  adb('forward', 'tcp:9222', 'localabstract:chrome_devtools_remote');
 
-  await waitForUrl('http://127.0.0.1:9222/json/version');
+  await waitForUrl('http://127.0.0.1:9222/json/version', 45_000);
   browser = await chromium.connectOverCDP('http://127.0.0.1:9222');
   const context = browser.contexts()[0];
   if (!context) throw new Error('Android Chrome did not expose a browser context');
@@ -136,5 +161,6 @@ try {
   process.exitCode = 1;
 } finally {
   await browser?.close();
-  server?.kill('SIGTERM');
+  await stopServer();
+  process.exit(process.exitCode ?? 0);
 }
